@@ -7,7 +7,6 @@ import numpy as np
 from app.data.generator import DataGenerator
 from app.metrics.aggregator import MetricsAggregator
 from app.metrics.derivatives import DerivativeCalculator
-from app.metrics.integrals import IntegralCalculator
 import config
 
 class StaticSiteBuilder:
@@ -18,6 +17,7 @@ class StaticSiteBuilder:
         self.data = None
         self.df = None
         self.metrics = None
+        self.deriv_calc = DerivativeCalculator()
         
     def generate_data(self, seed=42):
         """Генерация данных."""
@@ -34,6 +34,7 @@ class StaticSiteBuilder:
         
         summary = self.metrics.get_summary()
         
+        # Данные по дням
         daily_data = []
         for idx, row in self.df.iterrows():
             daily_data.append({
@@ -45,14 +46,13 @@ class StaticSiteBuilder:
                 'total': int(row['button'] + row['svp'] + row['va'] + row['app'])
             })
         
-        calc = DerivativeCalculator(use_smoothing=True, interpolation_points=10)
-        derivatives = {}
-        for tp in config.TOUCHPOINTS:
-            _, tangents = calc.calculate_derivatives(
-                self.df[tp].tolist(), 
-                self.df['date'].tolist()
-            )
-            derivatives[tp] = [float(x) for x in tangents]
+        # Производные
+        derivatives = {
+            'button': self.deriv_calc.calculate_derivatives(self.df['button'].tolist()),
+            'svp': self.deriv_calc.calculate_derivatives(self.df['svp'].tolist()),
+            'va': self.deriv_calc.calculate_derivatives(self.df['va'].tolist()),
+            'app': self.deriv_calc.calculate_derivatives(self.df['app'].tolist())
+        }
         
         output = {
             'generated_at': datetime.now().isoformat(),
@@ -89,39 +89,6 @@ class StaticSiteBuilder:
         frontend_dir = os.path.join(os.path.dirname(__file__), "../frontend")
         frontend_dir = os.path.abspath(frontend_dir)
         
-        print(f"   Поиск фронтенда в: {frontend_dir}")
-        
-        if os.path.exists(frontend_dir):
-            files_copied = 0
-            for file in os.listdir(frontend_dir):
-                src = os.path.join(frontend_dir, file)
-                dst = os.path.join(self.output_dir, file)
-                if os.path.isfile(src):
-                    shutil.copy2(src, dst)
-                    files_copied += 1
-                    print(f"   ✅ Скопирован: {file}")
-            
-            if files_copied == 0:
-                print("   ⚠️ В папке frontend нет файлов для копирования")
-        else:
-            print(f"   ⚠️ Папка фронтенда не найдена: {frontend_dir}")
-            os.makedirs(os.path.join(self.output_dir, "frontend"), exist_ok=True)
-        
-        return self
-    
-    def build(self):
-        """Просто копирует frontend и добавляет data.json"""
-        print("🏗️ Запуск сборки...")
-        
-        os.makedirs(self.output_dir, exist_ok=True)
-        
-        # 1. Генерируем данные
-        self.build_json_data()
-        
-        # 2. Копируем ВСЕ файлы из frontend в output
-        frontend_dir = os.path.join(os.path.dirname(__file__), "../frontend")
-        frontend_dir = os.path.abspath(frontend_dir)
-        
         if os.path.exists(frontend_dir):
             for file in os.listdir(frontend_dir):
                 src = os.path.join(frontend_dir, file)
@@ -131,14 +98,23 @@ class StaticSiteBuilder:
                     print(f"   ✅ Скопирован: {file}")
         else:
             print(f"❌ Папка frontend не найдена!")
-            return self
+        
+        return self
+    
+    def build(self):
+        """Полная сборка."""
+        print("🏗️ Запуск сборки...")
+        
+        os.makedirs(self.output_dir, exist_ok=True)
+        
+        self.build_json_data()
+        self.copy_frontend()
         
         print(f"\n📋 Содержимое output:")
         for f in os.listdir(self.output_dir):
             size = os.path.getsize(os.path.join(self.output_dir, f))
             print(f"   - {f} ({size} байт)")
         
-        print(f"\n✅ Сборка завершена! Главный файл: {os.path.join(self.output_dir, 'index.html')}")
         return self
 
 if __name__ == "__main__":
