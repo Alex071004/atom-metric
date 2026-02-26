@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>АТОМ Metrics - Детальный дашборд</title>
+    
+    <!-- Подключение стилей -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Подключение Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+    
+    <style>
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        @media (max-width: 768px) {
+            .detail-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <header>
+            <a href="index.html" class="back-link">← На главную</a>
+            <h1>📊 Детальный дашборд</h1>
+            <p>Детальный анализ каждого тачпоинта</p>
+        </header>
+
+        <div id="loading" class="loading">
+            Загрузка данных...
+        </div>
+
+        <!-- Детальные графики по каждому тачпоинту -->
+        <div id="detailContent" style="display: none;">
+            <!-- Кнопка -->
+            <div class="chart-card">
+                <h3>🔘 Кнопка - ежедневные открытия</h3>
+                <canvas id="buttonDailyChart"></canvas>
+            </div>
+            
+            <div class="chart-card">
+                <h3>🔘 Кнопка - производная (на 1 машину)</h3>
+                <canvas id="buttonDerivChart"></canvas>
+            </div>
+            
+            <!-- СВП -->
+            <div class="chart-card">
+                <h3>🔄 СВП (руль) - ежедневные открытия</h3>
+                <canvas id="svpDailyChart"></canvas>
+            </div>
+            
+            <div class="chart-card">
+                <h3>🔄 СВП - производная (на 1 машину)</h3>
+                <canvas id="svpDerivChart"></canvas>
+            </div>
+            
+            <!-- VA -->
+            <div class="chart-card">
+                <h3>🎤 VA - ежедневные открытия</h3>
+                <canvas id="vaDailyChart"></canvas>
+            </div>
+            
+            <div class="chart-card">
+                <h3>🎤 VA - производная (на 1 машину)</h3>
+                <canvas id="vaDerivChart"></canvas>
+            </div>
+            
+            <!-- Приложение -->
+            <div class="chart-card">
+                <h3>📱 Приложение - ежедневные открытия</h3>
+                <canvas id="appDailyChart"></canvas>
+            </div>
+            
+            <div class="chart-card">
+                <h3>📱 Приложение - производная (на 1 машину)</h3>
+                <canvas id="appDerivChart"></canvas>
+            </div>
+        </div>
+
+        <div id="error" class="error" style="display: none;">
+            Ошибка загрузки данных
+        </div>
+    </div>
+
+    <script>
+        // Глобальные переменные для графиков
+        let detailCharts = {};
+
+        async function loadDetailData() {
+            try {
+                document.getElementById('loading').style.display = 'block';
+                
+                const response = await fetch('data.json');
+                if (!response.ok) throw new Error('Ошибка загрузки');
+                
+                const data = await response.json();
+                console.log('Данные загружены для детального дашборда:', data);
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('detailContent').style.display = 'block';
+                
+                createDetailCharts(data);
+                
+            } catch (error) {
+                console.error('Ошибка:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+            }
+        }
+
+        function createDetailCharts(data) {
+            // Уничтожаем старые графики
+            Object.values(detailCharts).forEach(chart => {
+                if (chart) chart.destroy();
+            });
+            
+            const dates = data.daily.map(d => {
+                const date = new Date(d.date);
+                return `${date.getDate()}.${date.getMonth() + 1}`;
+            });
+
+            // Кнопка - ежедневные
+            detailCharts.buttonDaily = new Chart('buttonDailyChart', {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'Кнопка',
+                        data: data.daily.map(d => d.button),
+                        borderColor: '#1f77b4',
+                        backgroundColor: 'rgba(31, 119, 180, 0.1)',
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+
+            // Кнопка - производная
+            detailCharts.buttonDeriv = new Chart('buttonDerivChart', {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'Производная кнопки',
+                        data: data.derivatives.button.slice(0, dates.length),
+                        borderColor: '#1f77b4',
+                        borderDash: [5, 5],
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Тангенс угла'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // СВП - ежедневные
+            detailCharts.svpDaily = new Chart('svpDailyChart', {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'СВП',
+                        data: data.daily.map(d => d.svp),
+                        borderColor: '#ff7f0e',
+                        backgroundColor: 'rgba(255, 127, 14, 0.1)',
+                        tension: 0.3
+                    }]
+                }
+            });
+
+            // СВП - производная
+            detailCharts.svpDeriv = new Chart('svpDerivChart', {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'Производная СВП',
+                        data: data.derivatives.svp.slice(0, dates.length),
+                        borderColor: '#ff7f0e',
+                        borderDash: [5, 5],
+                        tension: 0.3
+                    }]
+                }
+            });
+
+            // VA - ежедневные
+            detailCharts.vaDaily = new Chart('vaDailyChart', {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'VA',
+                        data: data.daily.map(d => d.va),
+                        borderColor: '#2ca02c',
+                        backgroundColor: 'rgba(44, 160, 44, 0.1)',
+                        tension: 0.3
+                    }]
+                }
+            });
+
+            // VA - производная
+            detailCharts.vaDeriv = new Chart('vaDerivChart', {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'Производная VA',
+                        data: data.derivatives.va.slice(0, dates.length),
+                        borderColor: '#2ca02c',
+                        borderDash: [5, 5],
+                        tension: 0.3
+                    }]
+                }
+            });
+
+            // Приложение - ежедневные
+            detailCharts.appDaily = new Chart('appDailyChart', {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'Приложение',
+                        data: data.daily.map(d => d.app),
+                        borderColor: '#d62728',
+                        backgroundColor: 'rgba(214, 39, 40, 0.1)',
+                        tension: 0.3
+                    }]
+                }
+            });
+
+            // Приложение - производная
+            detailCharts.appDeriv = new Chart('appDerivChart', {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'Производная приложения',
+                        data: data.derivatives.app.slice(0, dates.length),
+                        borderColor: '#d62728',
+                        borderDash: [5, 5],
+                        tension: 0.3
+                    }]
+                }
+            });
+        }
+
+        // Обработка ресайза
+        window.addEventListener('resize', () => {
+            Object.values(detailCharts).forEach(chart => {
+                if (chart) chart.resize();
+            });
+        });
+
+        // Запуск при загрузке
+        document.addEventListener('DOMContentLoaded', loadDetailData);
+    </script>
+</body>
+</html>
