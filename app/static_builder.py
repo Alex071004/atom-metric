@@ -41,7 +41,7 @@ class StaticSiteBuilder:
         for idx, row in self.df.iterrows():
             daily_data.append({
                 'date': row['date'].strftime('%Y-%m-%d'),
-                'button': int(row['button']),
+                'button': int(row['button']),  # явное преобразование в int
                 'svp': int(row['svp']),
                 'va': int(row['va']),
                 'app': int(row['app']),
@@ -56,23 +56,24 @@ class StaticSiteBuilder:
                 self.df[tp].tolist(), 
                 self.df['date'].tolist()
             )
-            derivatives[tp] = tangents.tolist()
+            # Преобразуем numpy array в список Python-чисел
+            derivatives[tp] = [float(x) for x in tangents]  # важно: float()
         
-        # Итоговый JSON
+        # Итоговый JSON с явным преобразованием всех numpy типов
         output = {
             'generated_at': datetime.now().isoformat(),
             'summary': {
-                'total_opens': summary['total_opens'],
-                'avg_daily': float(summary['avg_daily']),
+                'total_opens': int(summary['total_opens']),  # int()
+                'avg_daily': float(summary['avg_daily']),    # float()
                 'max_daily': float(summary['max_daily']),
                 'min_daily': float(summary['min_daily']),
-                'days': len(self.df),
-                'cars': config.CARS_COUNT
+                'days': int(len(self.df)),
+                'cars': int(config.CARS_COUNT)
             },
             'by_touchpoint': {
                 tp: {
-                    'total': int(summary['by_touchpoint'][tp]),
-                    'percentage': float(summary['by_touchpoint'][tp] / summary['total_opens'] * 100),
+                    'total': int(summary['by_touchpoint'][tp]),  # int()
+                    'percentage': float(summary['by_touchpoint'][tp] / summary['total_opens'] * 100),  # float()
                     'name': config.TOUCHPOINT_NAMES_RU[tp]
                 }
                 for tp in config.TOUCHPOINTS
