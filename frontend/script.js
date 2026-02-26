@@ -6,28 +6,19 @@ async function loadData() {
     try {
         console.log('Загрузка данных...');
         
-        // Показываем индикатор загрузки
         document.getElementById('loading').style.display = 'block';
         
-        // Загружаем данные (data.json в той же папке)
         const response = await fetch('data.json');
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
         const data = await response.json();
         console.log('Данные загружены:', data);
         
-        // Скрываем индикатор загрузки
         document.getElementById('loading').style.display = 'none';
-        
-        // Показываем контейнеры
         document.getElementById('statsCards').style.display = 'grid';
         document.getElementById('chartsGrid').style.display = 'grid';
         document.getElementById('dataTable').style.display = 'block';
         
-        // Обновляем все компоненты
         updateStatsCards(data);
         createAllCharts(data);
         updateTable(data);
@@ -43,14 +34,11 @@ async function loadData() {
 // Обновление статистики
 function updateStatsCards(data) {
     const statsCards = document.getElementById('statsCards');
-    
-    // Очищаем существующие карточки
     statsCards.innerHTML = '';
     
-    // Создаем карточки
     const cards = [
         { label: 'Всего открытий', value: data.summary.total_opens.toLocaleString() },
-        { label: 'В среднем в день', value: data.summary.avg_daily.toFixed(1) },
+        { label: 'Среднее в день', value: data.summary.avg_daily.toFixed(1) },
         { label: 'Машин в парке', value: data.summary.cars },
         { label: 'Дней анализа', value: data.summary.days }
     ];
@@ -68,23 +56,41 @@ function updateStatsCards(data) {
 
 // Создание всех графиков
 function createAllCharts(data) {
-    // Уничтожаем старые графики если есть
+    // Уничтожаем старые графики
     Object.values(chartInstances).forEach(chart => {
         if (chart) chart.destroy();
     });
     
-    // Подготовка данных
-    const dates = data.daily.map(d => {
-        const date = new Date(d.date);
-        return `${date.getDate()}.${date.getMonth() + 1}`;
-    });
+    // Подготовка данных: дни с релиза вместо дат
+    const daysFromStart = data.daily.map((_, index) => index + 1); // 1, 2, 3, ...
     
+    // Функция для создания вертикальных линий каждые 30 дней
+    const annotationLines = [];
+    for (let i = 30; i <= data.daily.length; i += 30) {
+        annotationLines.push({
+            type: 'line',
+            mode: 'vertical',
+            scaleID: 'x',
+            value: i,
+            borderColor: 'rgba(0,0,0,0.2)',
+            borderWidth: 1,
+            borderDash: [5, 5],
+            label: {
+                display: true,
+                content: `${i} день`,
+                position: 'start',
+                backgroundColor: 'rgba(0,0,0,0.1)',
+                font: { size: 10 }
+            }
+        });
+    }
+
     // 1. График всех тачпоинтов
     const allCtx = document.getElementById('allTouchpointsChart').getContext('2d');
     chartInstances.all = new Chart(allCtx, {
         type: 'line',
         data: {
-            labels: dates,
+            labels: daysFromStart,
             datasets: [
                 {
                     label: 'Кнопка',
@@ -92,7 +98,8 @@ function createAllCharts(data) {
                     borderColor: '#1f77b4',
                     backgroundColor: 'rgba(31, 119, 180, 0.1)',
                     tension: 0.3,
-                    pointRadius: 2
+                    pointRadius: 1,
+                    borderWidth: 2
                 },
                 {
                     label: 'СВП',
@@ -100,7 +107,8 @@ function createAllCharts(data) {
                     borderColor: '#ff7f0e',
                     backgroundColor: 'rgba(255, 127, 14, 0.1)',
                     tension: 0.3,
-                    pointRadius: 2
+                    pointRadius: 1,
+                    borderWidth: 2
                 },
                 {
                     label: 'VA',
@@ -108,7 +116,8 @@ function createAllCharts(data) {
                     borderColor: '#2ca02c',
                     backgroundColor: 'rgba(44, 160, 44, 0.1)',
                     tension: 0.3,
-                    pointRadius: 2
+                    pointRadius: 1,
+                    borderWidth: 2
                 },
                 {
                     label: 'Приложение',
@@ -116,7 +125,8 @@ function createAllCharts(data) {
                     borderColor: '#d62728',
                     backgroundColor: 'rgba(214, 39, 40, 0.1)',
                     tension: 0.3,
-                    pointRadius: 2
+                    pointRadius: 1,
+                    borderWidth: 2
                 }
             ]
         },
@@ -124,13 +134,24 @@ function createAllCharts(data) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    position: 'bottom'
+                legend: { position: 'bottom' },
+                annotation: {
+                    annotations: annotationLines
                 }
             },
             scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'День с начала релиза'
+                    }
+                },
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Количество открытий'
+                    }
                 }
             }
         }
@@ -156,67 +177,39 @@ function createAllCharts(data) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    position: 'bottom'
-                }
+                legend: { position: 'bottom' }
             }
         }
     });
     
     // 3. Суммарные открытия
+    const totalData = data.daily.map(d => d.total);
+    const avgTotal = totalData.reduce((a, b) => a + b, 0) / totalData.length;
+    
     const totalCtx = document.getElementById('totalChart').getContext('2d');
     chartInstances.total = new Chart(totalCtx, {
         type: 'line',
         data: {
-            labels: dates,
-            datasets: [{
-                label: 'Всего открытий',
-                data: data.daily.map(d => d.total),
-                borderColor: '#9467bd',
-                backgroundColor: 'rgba(148, 103, 189, 0.1)',
-                fill: true,
-                tension: 0.3,
-                pointRadius: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            }
-        }
-    });
-    
-    // 4. Производные (только для Кнопки и СВП для наглядности)
-    const derivCtx = document.getElementById('derivativesChart').getContext('2d');
-    
-    // Берем производные (они уже на 1 машину)
-    const buttonDeriv = data.derivatives.button.slice(0, dates.length);
-    const svpDeriv = data.derivatives.svp.slice(0, dates.length);
-    
-    chartInstances.derivatives = new Chart(derivCtx, {
-        type: 'line',
-        data: {
-            labels: dates,
+            labels: daysFromStart,
             datasets: [
                 {
-                    label: 'Кнопка (производная)',
-                    data: buttonDeriv,
-                    borderColor: '#1f77b4',
-                    borderDash: [5, 5],
+                    label: 'Всего открытий',
+                    data: totalData,
+                    borderColor: '#9467bd',
+                    backgroundColor: 'rgba(148, 103, 189, 0.1)',
+                    fill: true,
                     tension: 0.3,
-                    pointRadius: 1
+                    pointRadius: 1,
+                    borderWidth: 2
                 },
                 {
-                    label: 'СВП (производная)',
-                    data: svpDeriv,
-                    borderColor: '#ff7f0e',
+                    label: `Среднее (${avgTotal.toFixed(1)})`,
+                    data: Array(daysFromStart.length).fill(avgTotal),
+                    borderColor: '#ff0000',
+                    borderWidth: 2,
                     borderDash: [5, 5],
-                    tension: 0.3,
-                    pointRadius: 1
+                    pointRadius: 0,
+                    fill: false
                 }
             ]
         },
@@ -224,15 +217,121 @@ function createAllCharts(data) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    position: 'bottom'
+                legend: { position: 'bottom' },
+                annotation: {
+                    annotations: annotationLines
                 }
             },
             scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'День с начала релиза'
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Количество открытий'
+                    }
+                }
+            }
+        }
+    });
+    
+    // 4. Производные ВСЕХ тачпоинтов
+    const derivCtx = document.getElementById('derivativesChart').getContext('2d');
+    
+    // Ограничиваем длину производных
+    const derivLength = Math.min(
+        data.derivatives.button.length,
+        data.derivatives.svp.length,
+        data.derivatives.va.length,
+        data.derivatives.app.length,
+        daysFromStart.length
+    );
+    
+    // Находим максимальное абсолютное значение для масштабирования
+    const allDerivValues = [
+        ...data.derivatives.button.slice(0, derivLength),
+        ...data.derivatives.svp.slice(0, derivLength),
+        ...data.derivatives.va.slice(0, derivLength),
+        ...data.derivatives.app.slice(0, derivLength)
+    ];
+    const maxAbsDeriv = Math.max(...allDerivValues.map(Math.abs)) * 1.2; // +20% запаса
+    
+    chartInstances.derivatives = new Chart(derivCtx, {
+        type: 'line',
+        data: {
+            labels: daysFromStart.slice(0, derivLength),
+            datasets: [
+                {
+                    label: 'Кнопка',
+                    data: data.derivatives.button.slice(0, derivLength),
+                    borderColor: '#1f77b4',
+                    tension: 0.3,
+                    pointRadius: 0.5,
+                    borderWidth: 2
+                },
+                {
+                    label: 'СВП',
+                    data: data.derivatives.svp.slice(0, derivLength),
+                    borderColor: '#ff7f0e',
+                    tension: 0.3,
+                    pointRadius: 0.5,
+                    borderWidth: 2
+                },
+                {
+                    label: 'VA',
+                    data: data.derivatives.va.slice(0, derivLength),
+                    borderColor: '#2ca02c',
+                    tension: 0.3,
+                    pointRadius: 0.5,
+                    borderWidth: 2
+                },
+                {
+                    label: 'Приложение',
+                    data: data.derivatives.app.slice(0, derivLength),
+                    borderColor: '#d62728',
+                    tension: 0.3,
+                    pointRadius: 0.5,
+                    borderWidth: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                annotation: {
+                    annotations: annotationLines
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'День с начала релиза'
+                    }
+                },
                 y: {
                     title: {
                         display: true,
                         text: 'Тангенс угла наклона'
+                    },
+                    min: -maxAbsDeriv,
+                    max: maxAbsDeriv,
+                    grid: {
+                        color: context => {
+                            if (context.tick.value === 0) return '#000000';
+                            return '#e0e0e0';
+                        },
+                        lineWidth: context => {
+                            if (context.tick.value === 0) return 2;
+                            return 1;
+                        }
                     }
                 }
             }
@@ -245,7 +344,6 @@ function updateTable(data) {
     const tbody = document.getElementById('tableBody');
     tbody.innerHTML = '';
     
-    // Берем последние 10 дней
     const last10Days = data.daily.slice(-10).reverse();
     
     last10Days.forEach(day => {
@@ -262,13 +360,12 @@ function updateTable(data) {
     });
 }
 
-// Обработка изменения размера окна
+// Обработка ресайза
 window.addEventListener('resize', () => {
-    // Перерисовываем графики при изменении размера
     Object.values(chartInstances).forEach(chart => {
         if (chart) chart.resize();
     });
 });
 
-// Запуск загрузки данных при загрузке страницы
+// Запуск
 document.addEventListener('DOMContentLoaded', loadData);
