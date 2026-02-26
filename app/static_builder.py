@@ -109,132 +109,114 @@ class StaticSiteBuilder:
         
         return self
     
-    def build(self):
-        """Полная сборка с гарантированным созданием index.html"""
-        print("🏗️ Запуск сборки...")
-        
-        os.makedirs(self.output_dir, exist_ok=True)
-        print(f"📁 Папка output: {os.path.abspath(self.output_dir)}")
-        
-        self.build_json_data()
-        self.copy_frontend()
-        
-        index_path = os.path.join(self.output_dir, "index.html")
-        
-        if not os.path.exists(index_path):
-            print("⚠️ index.html не найден, создаем...")
-            
-            data_path = os.path.join(self.output_dir, "data.json")
-            if os.path.exists(data_path):
-                with open(data_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                total_opens = data['summary']['total_opens']
+       def build(self):
+            """Полная сборка с гарантированным созданием index.html"""
+            print("🏗️ Запуск сборки...")
+    
+            os.makedirs(self.output_dir, exist_ok=True)
+            print(f"📁 Папка output: {os.path.abspath(self.output_dir)}")
+    
+            self.build_json_data()
+            self.copy_frontend()
+    
+            index_path = os.path.join(self.output_dir, "index.html")
+    
+            if not os.path.exists(index_path):
+                print("⚠️ index.html не найден, создаем упрощенную версию...")
+    
+                data_path = os.path.join(self.output_dir, "data.json")
+                if os.path.exists(data_path):
+                    with open(data_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    total_opens = data['summary']['total_opens']
+                else:
+                    total_opens = "N/A"
+    
+                # Исправленный HTML с правильными путями и без дублирования графиков
+                html_content = f'''<!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>АТОМ Metrics</title>
+        <!-- ПРАВИЛЬНЫЙ ПУТЬ к CSS -->
+        <link rel="stylesheet" href="frontend/styles.css">
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    </head>
+    <body>
+        <div class="app">
+            <header>
+                <h1>🚗 АТОМ Metrics</h1>
+                <p>Анализ открытий дверей по тачпоинтам</p>
+            </header>
+    
+            <nav>
+                <a href="index.html" class="active">Главная</a>
+                <a href="frontend/dashboard.html">Дашборд</a>
+            </nav>
+    
+            <div class="stats-cards" id="statsCards">
+                <div class="stat-card">
+                    <div class="stat-value">{total_opens}</div>
+                    <div class="stat-label">Всего открытий</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avgDaily">...</div>
+                    <div class="stat-label">В среднем в день</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="cars">{config.CARS_COUNT}</div>
+                    <div class="stat-label">Машин в парке</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="days">{len(self.df)}</div>
+                    <div class="stat-label">Дней</div>
+                </div>
+            </div>
+    
+            <!-- Контейнеры для графиков будут заполнены из frontend/script.js -->
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3>Все тачпоинты</h3>
+                    <canvas id="allTouchpointsChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Распределение</h3>
+                    <canvas id="pieChart"></canvas>
+                </div>
+            </div>
+    
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3>Суммарные открытия</h3>
+                    <canvas id="totalChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Производные</h3>
+                    <canvas id="derivativesChart"></canvas>
+                </div>
+            </div>
+        </div>
+    
+        <!-- ПРАВИЛЬНЫЕ ПУТИ к скриптам. ВАЖНО: сначала data, потом script -->
+        <script src="data.json" id="data-json"></script>
+        <script src="frontend/script.js"></script>
+    </body>
+    </html>'''
+    
+                with open(index_path, 'w', encoding='utf-8') as f:
+                    f.write(html_content)
+                print(f"✅ Создан index.html в {index_path}")
             else:
-                total_opens = "N/A"
-            
-            html_content = f'''<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>АТОМ Metrics</title>
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}
-        .container {{ max-width: 1200px; margin: 0 auto; }}
-        header {{ background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        h1 {{ margin: 0; color: #1f77b4; }}
-        .stats {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }}
-        .stat-card {{ background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }}
-        .stat-value {{ font-size: 2em; font-weight: bold; color: #1f77b4; }}
-        .nav {{ display: flex; gap: 10px; margin-bottom: 20px; }}
-        .nav a {{ padding: 10px 20px; background: white; text-decoration: none; color: #333; border-radius: 5px; }}
-        .nav a.active {{ background: #1f77b4; color: white; }}
-        .info {{ background: #e7f3ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; }}
-        .chart-container {{ background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
-    <div class="container">
-        <header>
-            <h1>🚗 АТОМ Metrics</h1>
-            <p>Анализ открытий дверей по тачпоинтам</p>
-        </header>
-        
-        <div class="nav">
-            <a href="index.html" class="active">Главная</a>
-            <a href="#" onclick="alert("Страница в разработке")">Дашборд</a>
-        </div>
-        
-        <div class="stats">
-            <div class="stat-card">
-                <div class="stat-value">{total_opens}</div>
-                <div>Всего открытий</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="avgDaily">...</div>
-                <div>В среднем в день</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="cars">{config.CARS_COUNT}</div>
-                <div>Машин в парке</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="days">{len(self.df)}</div>
-                <div>Дней</div>
-            </div>
-        </div>
-        
-        <div class="info">
-            <p>✅ Сайт успешно собран!</p>
-        </div>
-        
-        <div class="chart-container">
-            <canvas id="simpleChart" width="400" height="200"></canvas>
-        </div>
-    </div>
+                print(f"✅ index.html уже существует в {index_path}")
     
-    <script>
-        fetch("data.json")
-            .then(response => response.json())
-            .then(data => {{
-                document.getElementById("avgDaily").textContent = data.summary.avg_daily.toFixed(1);
-                
-                const ctx = document.getElementById("simpleChart").getContext("2d");
-                new Chart(ctx, {{
-                    type: "line",
-                    data: {{
-                        labels: data.daily.slice(-10).map(d => d.date),
-                        datasets: [{{
-                            label: "Всего открытий",
-                            data: data.daily.slice(-10).map(d => d.total),
-                            borderColor: "#1f77b4",
-                            backgroundColor: "rgba(31, 119, 180, 0.1)",
-                            tension: 0.3
-                        }}]
-                    }}
-                }});
-            }});
-    </script>
+            print("\n📋 Содержимое output:")
+            for f in os.listdir(self.output_dir):
+                size = os.path.getsize(os.path.join(self.output_dir, f))
+                print(f"   - {f} ({size} байт)")
     
-    <script src="script.js"></script>
-    <script src="frontend/script.js"></script>
-</body>
-</html>'''
-            
-            with open(index_path, 'w', encoding='utf-8') as f:
-                f.write(html_content)
-            print(f"✅ Создан index.html в {index_path}")
-        else:
-            print(f"✅ index.html уже существует в {index_path}")
-        
-        print("\n📋 Содержимое output:")
-        for f in os.listdir(self.output_dir):
-            size = os.path.getsize(os.path.join(self.output_dir, f))
-            print(f"   - {f} ({size} байт)")
-        
-        print("\n✅ Сборка завершена успешно!")
-        return self
+            print("\n✅ Сборка завершена успешно!")
+            return self
 
 if __name__ == "__main__":
     builder = StaticSiteBuilder(output_dir="output")
