@@ -4,7 +4,11 @@ let chartInstances = {};
 // Функция загрузки данных
 async function loadData() {
     try {
-        document.getElementById('loading').style.display = 'block';
+        console.log('Загрузка данных...');
+        
+        // Показываем индикатор загрузки
+        const loadingEl = document.getElementById('loading');
+        if (loadingEl) loadingEl.style.display = 'block';
         
         const response = await fetch('data.json');
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -12,10 +16,21 @@ async function loadData() {
         const data = await response.json();
         console.log('Данные загружены:', data);
         
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('statsCards').style.display = 'grid';
-        document.getElementById('chartsGrid').style.display = 'grid';
-        document.getElementById('dataTable').style.display = 'block';
+        // Скрываем индикатор загрузки
+        if (loadingEl) loadingEl.style.display = 'none';
+        
+        // Показываем контейнеры
+        const statsCards = document.getElementById('statsCards');
+        const chartsGrid = document.getElementById('chartsGrid');
+        const dataTable = document.getElementById('dataTable');
+        
+        if (statsCards) statsCards.style.display = 'grid';
+        if (chartsGrid) chartsGrid.style.display = 'grid';
+        if (dataTable) dataTable.style.display = 'block';
+        
+        // Скрываем ошибку если была
+        const errorEl = document.getElementById('error');
+        if (errorEl) errorEl.style.display = 'none';
         
         updateStatsCards(data);
         createAllCharts(data);
@@ -23,14 +38,23 @@ async function loadData() {
         
     } catch (error) {
         console.error('Ошибка загрузки данных:', error);
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('error').style.display = 'block';
+        
+        const loadingEl = document.getElementById('loading');
+        if (loadingEl) loadingEl.style.display = 'none';
+        
+        const errorEl = document.getElementById('error');
+        if (errorEl) {
+            errorEl.style.display = 'block';
+            errorEl.innerHTML = 'Ошибка загрузки данных: ' + error.message;
+        }
     }
 }
 
 // Обновление статистики
 function updateStatsCards(data) {
     const statsCards = document.getElementById('statsCards');
+    if (!statsCards) return;
+    
     statsCards.innerHTML = '';
     
     const cards = [
@@ -87,8 +111,19 @@ function createAllCharts(data) {
     const daysFromStart = data.daily.map((_, index) => index + 1);
     const annotations = createAnnotations(daysCount);
 
+    // Проверяем наличие всех canvas элементов
+    const allCanvas = document.getElementById('allTouchpointsChart');
+    const pieCanvas = document.getElementById('pieChart');
+    const totalCanvas = document.getElementById('totalChart');
+    const derivCanvas = document.getElementById('derivativesChart');
+    
+    if (!allCanvas || !pieCanvas || !totalCanvas || !derivCanvas) {
+        console.error('Canvas элементы не найдены');
+        return;
+    }
+
     // 1. График всех тачпоинтов
-    const allCtx = document.getElementById('allTouchpointsChart').getContext('2d');
+    const allCtx = allCanvas.getContext('2d');
     chartInstances.all = new Chart(allCtx, {
         type: 'line',
         data: {
@@ -154,7 +189,7 @@ function createAllCharts(data) {
     });
     
     // 2. Круговая диаграмма
-    const pieCtx = document.getElementById('pieChart').getContext('2d');
+    const pieCtx = pieCanvas.getContext('2d');
     chartInstances.pie = new Chart(pieCtx, {
         type: 'doughnut',
         data: {
@@ -180,7 +215,7 @@ function createAllCharts(data) {
     const totalData = data.daily.map(d => d.total);
     const avgTotal = totalData.reduce((a, b) => a + b, 0) / totalData.length;
     
-    const totalCtx = document.getElementById('totalChart').getContext('2d');
+    const totalCtx = totalCanvas.getContext('2d');
     chartInstances.total = new Chart(totalCtx, {
         type: 'line',
         data: {
@@ -228,107 +263,133 @@ function createAllCharts(data) {
         }
     });
     
-    // 4. Производные - теперь отображаем только каждую 5-ю точку
-const derivCtx = document.getElementById('derivativesChart').getContext('2d');
-
-// Создаем массив индексов для отображения (каждый 5-й день)
-const displayIndices = [];
-for (let i = 0; i < daysFromStart.length; i += 5) {
-    displayIndices.push(i);
-}
-// Добавляем последний день, если его нет
-if (displayIndices[displayIndices.length - 1] !== daysFromStart.length - 1) {
-    displayIndices.push(daysFromStart.length - 1);
-}
-
-// Подготавливаем данные только для отображаемых индексов
-const derivLabels = displayIndices.map(i => daysFromStart[i]);
-const buttonDerivData = displayIndices.map(i => data.derivatives.button[i]);
-const svpDerivData = displayIndices.map(i => data.derivatives.svp[i]);
-const vaDerivData = displayIndices.map(i => data.derivatives.va[i]);
-const appDerivData = displayIndices.map(i => data.derivatives.app[i]);
-
-// Находим максимальное абсолютное значение для масштабирования
-const allDerivValues = [
-    ...buttonDerivData,
-    ...svpDerivData,
-    ...vaDerivData,
-    ...appDerivData
-].filter(v => !isNaN(v) && isFinite(v));
-
-const maxAbsDeriv = Math.max(...allDerivValues.map(Math.abs)) * 1.2;
-
-chartInstances.derivatives = new Chart(derivCtx, {
-    type: 'line',
-    data: {
-        labels: derivLabels,
-        datasets: [
-            {
-                label: 'Кнопка',
-                data: buttonDerivData,
-                borderColor: '#1f77b4',
-                tension: 0.1,
-                pointRadius: 4,
-                borderWidth: 3
-            },
-            {
-                label: 'СВП',
-                data: svpDerivData,
-                borderColor: '#ff7f0e',
-                tension: 0.1,
-                pointRadius: 4,
-                borderWidth: 3
-            },
-            {
-                label: 'VA',
-                data: vaDerivData,
-                borderColor: '#2ca02c',
-                tension: 0.1,
-                pointRadius: 4,
-                borderWidth: 3
-            },
-            {
-                label: 'Приложение',
-                data: appDerivData,
-                borderColor: '#d62728',
-                tension: 0.1,
-                pointRadius: 4,
-                borderWidth: 3
-            }
-        ]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { position: 'bottom' },
-            annotation: { annotations: createAnnotations(daysCount) }
+    // 4. Производные - отображаем каждую 5-ю точку
+    const derivCtx = derivCanvas.getContext('2d');
+    
+    // Создаем массив индексов для отображения (каждый 5-й день)
+    const displayIndices = [];
+    for (let i = 0; i < daysFromStart.length; i += 5) {
+        displayIndices.push(i);
+    }
+    // Добавляем последний день, если его нет
+    if (displayIndices[displayIndices.length - 1] !== daysFromStart.length - 1) {
+        displayIndices.push(daysFromStart.length - 1);
+    }
+    
+    // Подготавливаем данные только для отображаемых индексов
+    const derivLabels = displayIndices.map(i => daysFromStart[i]);
+    const buttonDerivData = displayIndices.map(i => data.derivatives.button[i] || 0);
+    const svpDerivData = displayIndices.map(i => data.derivatives.svp[i] || 0);
+    const vaDerivData = displayIndices.map(i => data.derivatives.va[i] || 0);
+    const appDerivData = displayIndices.map(i => data.derivatives.app[i] || 0);
+    
+    // Находим максимальное абсолютное значение для масштабирования
+    const allDerivValues = [
+        ...buttonDerivData,
+        ...svpDerivData,
+        ...vaDerivData,
+        ...appDerivData
+    ].filter(v => !isNaN(v) && isFinite(v) && v !== null);
+    
+    const maxAbsDeriv = allDerivValues.length > 0 
+        ? Math.max(...allDerivValues.map(Math.abs)) * 1.2 
+        : 1;
+    
+    chartInstances.derivatives = new Chart(derivCtx, {
+        type: 'line',
+        data: {
+            labels: derivLabels,
+            datasets: [
+                {
+                    label: 'Кнопка',
+                    data: buttonDerivData,
+                    borderColor: '#1f77b4',
+                    tension: 0.1,
+                    pointRadius: 4,
+                    borderWidth: 3
+                },
+                {
+                    label: 'СВП',
+                    data: svpDerivData,
+                    borderColor: '#ff7f0e',
+                    tension: 0.1,
+                    pointRadius: 4,
+                    borderWidth: 3
+                },
+                {
+                    label: 'VA',
+                    data: vaDerivData,
+                    borderColor: '#2ca02c',
+                    tension: 0.1,
+                    pointRadius: 4,
+                    borderWidth: 3
+                },
+                {
+                    label: 'Приложение',
+                    data: appDerivData,
+                    borderColor: '#d62728',
+                    tension: 0.1,
+                    pointRadius: 4,
+                    borderWidth: 3
+                }
+            ]
         },
-        scales: {
-            x: { 
-                title: { display: true, text: 'День с начала релиза' },
-                min: 1,
-                max: daysCount
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                annotation: { annotations: annotations }
             },
-            y: { 
-                title: { display: true, text: 'Производная (Δy/Δx)' },
-                min: -maxAbsDeriv,
-                max: maxAbsDeriv,
-                grid: {
-                    color: context => context.tick.value === 0 ? '#000000' : '#e0e0e0',
-                    lineWidth: context => context.tick.value === 0 ? 2 : 1
+            scales: {
+                x: { 
+                    title: { display: true, text: 'День с начала релиза' },
+                    min: 1,
+                    max: daysCount
+                },
+                y: { 
+                    title: { display: true, text: 'Производная (Δy/Δx)' },
+                    min: -maxAbsDeriv,
+                    max: maxAbsDeriv,
+                    grid: {
+                        color: context => context.tick.value === 0 ? '#000000' : '#e0e0e0',
+                        lineWidth: context => context.tick.value === 0 ? 2 : 1
+                    }
                 }
             }
         }
-    }
-});
+    });
+}
 
-// Обработка ресайза
+// Обновление таблицы
+function updateTable(data) {
+    const tbody = document.getElementById('tableBody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    const last10Days = data.daily.slice(-10).reverse();
+    
+    last10Days.forEach(day => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${day.date}</td>
+            <td>${day.button}</td>
+            <td>${day.svp}</td>
+            <td>${day.va}</td>
+            <td>${day.app}</td>
+            <td><strong>${day.total}</strong></td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Обработка ресайза окна
 window.addEventListener('resize', () => {
     Object.values(chartInstances).forEach(chart => {
         if (chart) chart.resize();
     });
 });
 
-// Запуск
+// Запуск при загрузке страницы
 document.addEventListener('DOMContentLoaded', loadData);
