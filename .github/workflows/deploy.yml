@@ -3,10 +3,7 @@ name: Build and Deploy to GitHub Pages
 on:
   push:
     branches: [ "main" ]
-  schedule:
-    # Автоматическая генерация каждый день
-    - cron: '0 0 * * *'
-  workflow_dispatch:  # Ручной запуск
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -35,14 +32,24 @@ jobs:
         run: |
           pip install -r requirements.txt
       
+      - name: Create output directory
+        run: mkdir -p output  # <-- ВАЖНО: создаем папку
+      
       - name: Generate static site
         run: |
           python -m app.static_builder
       
+      - name: Copy frontend files (if not copied by builder)
+        run: |
+          cp -r frontend/* output/ 2>/dev/null || echo "Frontend files already there"
+      
+      - name: List output directory (debug)
+        run: ls -la output/
+      
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './output'
+          path: './output'  # теперь папка точно существует
 
   deploy:
     environment:
