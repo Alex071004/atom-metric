@@ -54,6 +54,34 @@ function updateStatsCards(data) {
     });
 }
 
+// Функция для создания аннотаций (вертикальных линий)
+function createAnnotations(daysCount) {
+    const annotations = {};
+    
+    for (let i = 30; i <= daysCount; i += 30) {
+        annotations[`line${i}`] = {
+            type: 'line',
+            xMin: i,
+            xMax: i,
+            borderColor: 'rgba(0, 0, 0, 0.2)',
+            borderWidth: 1,
+            borderDash: [5, 5],
+            label: {
+                display: true,
+                content: `${i} день`,
+                position: 'start',
+                backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                font: {
+                    size: 10,
+                    weight: 'normal'
+                }
+            }
+        };
+    }
+    
+    return annotations;
+}
+
 // Создание всех графиков
 function createAllCharts(data) {
     // Уничтожаем старые графики
@@ -61,29 +89,9 @@ function createAllCharts(data) {
         if (chart) chart.destroy();
     });
     
-    // Подготовка данных: дни с релиза вместо дат
-    const daysFromStart = data.daily.map((_, index) => index + 1); // 1, 2, 3, ...
-    
-    // Функция для создания вертикальных линий каждые 30 дней
-    const annotationLines = [];
-    for (let i = 30; i <= data.daily.length; i += 30) {
-        annotationLines.push({
-            type: 'line',
-            mode: 'vertical',
-            scaleID: 'x',
-            value: i,
-            borderColor: 'rgba(0,0,0,0.2)',
-            borderWidth: 1,
-            borderDash: [5, 5],
-            label: {
-                display: true,
-                content: `${i} день`,
-                position: 'start',
-                backgroundColor: 'rgba(0,0,0,0.1)',
-                font: { size: 10 }
-            }
-        });
-    }
+    const daysCount = data.daily.length;
+    const daysFromStart = data.daily.map((_, index) => index + 1);
+    const annotations = createAnnotations(daysCount);
 
     // 1. График всех тачпоинтов
     const allCtx = document.getElementById('allTouchpointsChart').getContext('2d');
@@ -135,16 +143,16 @@ function createAllCharts(data) {
             maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'bottom' },
-                annotation: {
-                    annotations: annotationLines
-                }
+                annotation: { annotations: annotations }
             },
             scales: {
                 x: {
                     title: {
                         display: true,
                         text: 'День с начала релиза'
-                    }
+                    },
+                    min: 1,
+                    max: daysCount
                 },
                 y: {
                     beginAtZero: true,
@@ -157,7 +165,7 @@ function createAllCharts(data) {
         }
     });
     
-    // 2. Круговая диаграмма
+    // 2. Круговая диаграмма (без изменений)
     const pieCtx = document.getElementById('pieChart').getContext('2d');
     chartInstances.pie = new Chart(pieCtx, {
         type: 'doughnut',
@@ -218,16 +226,16 @@ function createAllCharts(data) {
             maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'bottom' },
-                annotation: {
-                    annotations: annotationLines
-                }
+                annotation: { annotations: annotations }
             },
             scales: {
                 x: {
                     title: {
                         display: true,
                         text: 'День с начала релиза'
-                    }
+                    },
+                    min: 1,
+                    max: daysCount
                 },
                 y: {
                     beginAtZero: true,
@@ -240,61 +248,57 @@ function createAllCharts(data) {
         }
     });
     
-    // 4. Производные ВСЕХ тачпоинтов
+    // 4. Производные (исправлено)
     const derivCtx = document.getElementById('derivativesChart').getContext('2d');
     
-    // Ограничиваем длину производных
-    const derivLength = Math.min(
-        data.derivatives.button.length,
-        data.derivatives.svp.length,
-        data.derivatives.va.length,
-        data.derivatives.app.length,
-        daysFromStart.length
-    );
+    // Производные считаются между днями, поэтому у них на 1 меньше точек
+    const derivDays = daysFromStart.slice(0, -1).map(d => d + 0.5); // ставим в середину между днями
     
     // Находим максимальное абсолютное значение для масштабирования
     const allDerivValues = [
-        ...data.derivatives.button.slice(0, derivLength),
-        ...data.derivatives.svp.slice(0, derivLength),
-        ...data.derivatives.va.slice(0, derivLength),
-        ...data.derivatives.app.slice(0, derivLength)
-    ];
-    const maxAbsDeriv = Math.max(...allDerivValues.map(Math.abs)) * 1.2; // +20% запаса
+        ...data.derivatives.button,
+        ...data.derivatives.svp,
+        ...data.derivatives.va,
+        ...data.derivatives.app
+    ].filter(v => !isNaN(v) && isFinite(v));
+    
+    const maxAbsDeriv = Math.max(...allDerivValues.map(Math.abs)) * 1.2;
+    const minDeriv = -maxAbsDeriv;
     
     chartInstances.derivatives = new Chart(derivCtx, {
         type: 'line',
         data: {
-            labels: daysFromStart.slice(0, derivLength),
+            labels: derivDays,
             datasets: [
                 {
                     label: 'Кнопка',
-                    data: data.derivatives.button.slice(0, derivLength),
+                    data: data.derivatives.button.slice(0, derivDays.length),
                     borderColor: '#1f77b4',
-                    tension: 0.3,
+                    tension: 0.1,  // минимальное сглаживание для производных
                     pointRadius: 0.5,
                     borderWidth: 2
                 },
                 {
                     label: 'СВП',
-                    data: data.derivatives.svp.slice(0, derivLength),
+                    data: data.derivatives.svp.slice(0, derivDays.length),
                     borderColor: '#ff7f0e',
-                    tension: 0.3,
+                    tension: 0.1,
                     pointRadius: 0.5,
                     borderWidth: 2
                 },
                 {
                     label: 'VA',
-                    data: data.derivatives.va.slice(0, derivLength),
+                    data: data.derivatives.va.slice(0, derivDays.length),
                     borderColor: '#2ca02c',
-                    tension: 0.3,
+                    tension: 0.1,
                     pointRadius: 0.5,
                     borderWidth: 2
                 },
                 {
                     label: 'Приложение',
-                    data: data.derivatives.app.slice(0, derivLength),
+                    data: data.derivatives.app.slice(0, derivDays.length),
                     borderColor: '#d62728',
-                    tension: 0.3,
+                    tension: 0.1,
                     pointRadius: 0.5,
                     borderWidth: 2
                 }
@@ -305,23 +309,23 @@ function createAllCharts(data) {
             maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'bottom' },
-                annotation: {
-                    annotations: annotationLines
-                }
+                annotation: { annotations: createAnnotations(daysCount - 1) } // для производных на 1 меньше
             },
             scales: {
                 x: {
                     title: {
                         display: true,
                         text: 'День с начала релиза'
-                    }
+                    },
+                    min: 1,
+                    max: daysCount
                 },
                 y: {
                     title: {
                         display: true,
-                        text: 'Тангенс угла наклона'
+                        text: 'Производная (Δy/Δx)'
                     },
-                    min: -maxAbsDeriv,
+                    min: minDeriv,
                     max: maxAbsDeriv,
                     grid: {
                         color: context => {
