@@ -4,8 +4,6 @@ let chartInstances = {};
 // Функция загрузки данных
 async function loadData() {
     try {
-        console.log('Загрузка данных...');
-        
         document.getElementById('loading').style.display = 'block';
         
         const response = await fetch('data.json');
@@ -27,7 +25,6 @@ async function loadData() {
         console.error('Ошибка загрузки данных:', error);
         document.getElementById('loading').style.display = 'none';
         document.getElementById('error').style.display = 'block';
-        document.getElementById('error').innerHTML = 'Ошибка загрузки данных: ' + error.message;
     }
 }
 
@@ -54,7 +51,7 @@ function updateStatsCards(data) {
     });
 }
 
-// Функция для создания аннотаций (вертикальных линий)
+// Функция для создания вертикальных линий
 function createAnnotations(daysCount) {
     const annotations = {};
     
@@ -71,10 +68,7 @@ function createAnnotations(daysCount) {
                 content: `${i} день`,
                 position: 'start',
                 backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                font: {
-                    size: 10,
-                    weight: 'normal'
-                }
+                font: { size: 10 }
             }
         };
     }
@@ -146,26 +140,20 @@ function createAllCharts(data) {
                 annotation: { annotations: annotations }
             },
             scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: 'День с начала релиза'
-                    },
+                x: { 
+                    title: { display: true, text: 'День с начала релиза' },
                     min: 1,
                     max: daysCount
                 },
-                y: {
+                y: { 
                     beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Количество открытий'
-                    }
+                    title: { display: true, text: 'Количество открытий' }
                 }
             }
         }
     });
     
-    // 2. Круговая диаграмма (без изменений)
+    // 2. Круговая диаграмма
     const pieCtx = document.getElementById('pieChart').getContext('2d');
     chartInstances.pie = new Chart(pieCtx, {
         type: 'doughnut',
@@ -184,9 +172,7 @@ function createAllCharts(data) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' }
-            }
+            plugins: { legend: { position: 'bottom' } }
         }
     });
     
@@ -229,30 +215,21 @@ function createAllCharts(data) {
                 annotation: { annotations: annotations }
             },
             scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: 'День с начала релиза'
-                    },
+                x: { 
+                    title: { display: true, text: 'День с начала релиза' },
                     min: 1,
                     max: daysCount
                 },
-                y: {
+                y: { 
                     beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Количество открытий'
-                    }
+                    title: { display: true, text: 'Количество открытий' }
                 }
             }
         }
     });
     
-    // 4. Производные (исправлено)
+    // 4. Производные - ИСПРАВЛЕНО
     const derivCtx = document.getElementById('derivativesChart').getContext('2d');
-    
-    // Производные считаются между днями, поэтому у них на 1 меньше точек
-    const derivDays = daysFromStart.slice(0, -1).map(d => d + 0.5); // ставим в середину между днями
     
     // Находим максимальное абсолютное значение для масштабирования
     const allDerivValues = [
@@ -263,24 +240,23 @@ function createAllCharts(data) {
     ].filter(v => !isNaN(v) && isFinite(v));
     
     const maxAbsDeriv = Math.max(...allDerivValues.map(Math.abs)) * 1.2;
-    const minDeriv = -maxAbsDeriv;
     
     chartInstances.derivatives = new Chart(derivCtx, {
         type: 'line',
         data: {
-            labels: derivDays,
+            labels: daysFromStart,  // те же дни, что и для основных данных
             datasets: [
                 {
                     label: 'Кнопка',
-                    data: data.derivatives.button.slice(0, derivDays.length),
+                    data: data.derivatives.button,
                     borderColor: '#1f77b4',
-                    tension: 0.1,  // минимальное сглаживание для производных
+                    tension: 0.1,
                     pointRadius: 0.5,
                     borderWidth: 2
                 },
                 {
                     label: 'СВП',
-                    data: data.derivatives.svp.slice(0, derivDays.length),
+                    data: data.derivatives.svp,
                     borderColor: '#ff7f0e',
                     tension: 0.1,
                     pointRadius: 0.5,
@@ -288,7 +264,7 @@ function createAllCharts(data) {
                 },
                 {
                     label: 'VA',
-                    data: data.derivatives.va.slice(0, derivDays.length),
+                    data: data.derivatives.va,
                     borderColor: '#2ca02c',
                     tension: 0.1,
                     pointRadius: 0.5,
@@ -296,7 +272,7 @@ function createAllCharts(data) {
                 },
                 {
                     label: 'Приложение',
-                    data: data.derivatives.app.slice(0, derivDays.length),
+                    data: data.derivatives.app,
                     borderColor: '#d62728',
                     tension: 0.1,
                     pointRadius: 0.5,
@@ -309,33 +285,21 @@ function createAllCharts(data) {
             maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'bottom' },
-                annotation: { annotations: createAnnotations(daysCount - 1) } // для производных на 1 меньше
+                annotation: { annotations: annotations }
             },
             scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: 'День с начала релиза'
-                    },
+                x: { 
+                    title: { display: true, text: 'День с начала релиза' },
                     min: 1,
                     max: daysCount
                 },
-                y: {
-                    title: {
-                        display: true,
-                        text: 'Производная (Δy/Δx)'
-                    },
-                    min: minDeriv,
+                y: { 
+                    title: { display: true, text: 'Производная' },
+                    min: -maxAbsDeriv,
                     max: maxAbsDeriv,
                     grid: {
-                        color: context => {
-                            if (context.tick.value === 0) return '#000000';
-                            return '#e0e0e0';
-                        },
-                        lineWidth: context => {
-                            if (context.tick.value === 0) return 2;
-                            return 1;
-                        }
+                        color: context => context.tick.value === 0 ? '#000000' : '#e0e0e0',
+                        lineWidth: context => context.tick.value === 0 ? 2 : 1
                     }
                 }
             }
