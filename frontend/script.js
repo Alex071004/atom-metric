@@ -393,3 +393,4 @@ window.addEventListener('resize', () => {
 
 // Запуск при загрузке страницы
 document.addEventListener('DOMContentLoaded', loadData);
+// КОНЕЦ ФАЙЛА - все скобки закрыты
