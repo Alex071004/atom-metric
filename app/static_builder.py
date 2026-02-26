@@ -110,7 +110,7 @@ class StaticSiteBuilder:
         return self
     
     def build(self):
-         """Просто копирует frontend и добавляет data.json"""
+        """Просто копирует frontend и добавляет data.json"""
         print("🏗️ Запуск сборки...")
         
         os.makedirs(self.output_dir, exist_ok=True)
