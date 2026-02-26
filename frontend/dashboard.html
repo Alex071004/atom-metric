@@ -8,9 +8,9 @@
     <!-- Подключение стилей -->
     <link rel="stylesheet" href="styles.css">
     
-    <!-- Подключение Chart.js -->
+    <!-- Подключение Chart.js и плагина аннотаций -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
     
     <style>
         .back-link {
@@ -34,6 +34,30 @@
                 grid-template-columns: 1fr;
             }
         }
+        .chart-card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+        .chart-card h3 {
+            margin: 0 0 15px 0;
+            color: var(--text-color);
+            font-size: 1.2em;
+            border-bottom: 2px solid var(--bg-color);
+            padding-bottom: 10px;
+        }
+        .chart-card canvas {
+            width: 100%;
+            height: 250px;
+        }
+        .derivatives-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
@@ -56,20 +80,10 @@
                 <canvas id="buttonDailyChart"></canvas>
             </div>
             
-            <div class="chart-card">
-                <h3>🔘 Кнопка - производная (на 1 машину)</h3>
-                <canvas id="buttonDerivChart"></canvas>
-            </div>
-            
             <!-- СВП -->
             <div class="chart-card">
                 <h3>🔄 СВП (руль) - ежедневные открытия</h3>
                 <canvas id="svpDailyChart"></canvas>
-            </div>
-            
-            <div class="chart-card">
-                <h3>🔄 СВП - производная (на 1 машину)</h3>
-                <canvas id="svpDerivChart"></canvas>
             </div>
             
             <!-- VA -->
@@ -78,20 +92,31 @@
                 <canvas id="vaDailyChart"></canvas>
             </div>
             
-            <div class="chart-card">
-                <h3>🎤 VA - производная (на 1 машину)</h3>
-                <canvas id="vaDerivChart"></canvas>
-            </div>
-            
             <!-- Приложение -->
             <div class="chart-card">
                 <h3>📱 Приложение - ежедневные открытия</h3>
                 <canvas id="appDailyChart"></canvas>
             </div>
             
-            <div class="chart-card">
-                <h3>📱 Приложение - производная (на 1 машину)</h3>
-                <canvas id="appDerivChart"></canvas>
+            <!-- Производные -->
+            <h2 style="margin: 30px 0 20px;">📈 Производные (на 1 машину)</h2>
+            <div class="derivatives-container">
+                <div class="chart-card">
+                    <h3>🔘 Производная кнопки</h3>
+                    <canvas id="buttonDerivChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>🔄 Производная СВП</h3>
+                    <canvas id="svpDerivChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>🎤 Производная VA</h3>
+                    <canvas id="vaDerivChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>📱 Производная приложения</h3>
+                    <canvas id="appDerivChart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -104,9 +129,35 @@
         // Глобальные переменные для графиков
         let detailCharts = {};
 
+        // Функция для создания вертикальных линий
+        function createAnnotations(daysCount) {
+            const annotations = {};
+            
+            for (let i = 30; i <= daysCount; i += 30) {
+                annotations[`line${i}`] = {
+                    type: 'line',
+                    xMin: i,
+                    xMax: i,
+                    borderColor: 'rgba(0, 0, 0, 0.2)',
+                    borderWidth: 1,
+                    borderDash: [5, 5],
+                    label: {
+                        display: true,
+                        content: `${i} день`,
+                        position: 'start',
+                        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                        font: { size: 10 }
+                    }
+                };
+            }
+            
+            return annotations;
+        }
+
         async function loadDetailData() {
             try {
-                document.getElementById('loading').style.display = 'block';
+                const loadingEl = document.getElementById('loading');
+                if (loadingEl) loadingEl.style.display = 'block';
                 
                 const response = await fetch('data.json');
                 if (!response.ok) throw new Error('Ошибка загрузки');
@@ -114,15 +165,27 @@
                 const data = await response.json();
                 console.log('Данные загружены для детального дашборда:', data);
                 
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('detailContent').style.display = 'block';
+                if (loadingEl) loadingEl.style.display = 'none';
+                
+                const detailContent = document.getElementById('detailContent');
+                if (detailContent) detailContent.style.display = 'block';
+                
+                const errorEl = document.getElementById('error');
+                if (errorEl) errorEl.style.display = 'none';
                 
                 createDetailCharts(data);
                 
             } catch (error) {
                 console.error('Ошибка:', error);
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').style.display = 'block';
+                
+                const loadingEl = document.getElementById('loading');
+                if (loadingEl) loadingEl.style.display = 'none';
+                
+                const errorEl = document.getElementById('error');
+                if (errorEl) {
+                    errorEl.style.display = 'block';
+                    errorEl.innerHTML = 'Ошибка загрузки данных: ' + error.message;
+                }
             }
         }
 
@@ -132,146 +195,371 @@
                 if (chart) chart.destroy();
             });
             
-            const dates = data.daily.map(d => {
-                const date = new Date(d.date);
-                return `${date.getDate()}.${date.getMonth() + 1}`;
-            });
+            const daysCount = data.daily.length;
+            const daysFromStart = data.daily.map((_, index) => index + 1);
+            const annotations = createAnnotations(daysCount);
+            
+            // Создаем массив индексов для производных (каждый 5-й день)
+            const derivIndices = [];
+            for (let i = 0; i < daysFromStart.length; i += 5) {
+                derivIndices.push(i);
+            }
+            if (derivIndices[derivIndices.length - 1] !== daysFromStart.length - 1) {
+                derivIndices.push(daysFromStart.length - 1);
+            }
+            const derivLabels = derivIndices.map(i => daysFromStart[i]);
 
-            // Кнопка - ежедневные
-            detailCharts.buttonDaily = new Chart('buttonDailyChart', {
-                type: 'line',
-                data: {
-                    labels: dates,
-                    datasets: [{
-                        label: 'Кнопка',
-                        data: data.daily.map(d => d.button),
-                        borderColor: '#1f77b4',
-                        backgroundColor: 'rgba(31, 119, 180, 0.1)',
-                        tension: 0.3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false
-                }
-            });
-
-            // Кнопка - производная
-            detailCharts.buttonDeriv = new Chart('buttonDerivChart', {
-                type: 'line',
-                data: {
-                    labels: dates,
-                    datasets: [{
-                        label: 'Производная кнопки',
-                        data: data.derivatives.button.slice(0, dates.length),
-                        borderColor: '#1f77b4',
-                        borderDash: [5, 5],
-                        tension: 0.3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'Тангенс угла'
+            // 1. Кнопка - ежедневные
+            const buttonDailyCanvas = document.getElementById('buttonDailyChart');
+            if (buttonDailyCanvas) {
+                detailCharts.buttonDaily = new Chart(buttonDailyCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: daysFromStart,
+                        datasets: [{
+                            label: 'Кнопка',
+                            data: data.daily.map(d => d.button),
+                            borderColor: '#1f77b4',
+                            backgroundColor: 'rgba(31, 119, 180, 0.1)',
+                            tension: 0.3,
+                            pointRadius: 1,
+                            borderWidth: 2,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            annotation: { annotations: annotations }
+                        },
+                        scales: {
+                            x: { 
+                                title: { display: true, text: 'День с начала релиза' },
+                                min: 1,
+                                max: daysCount
+                            },
+                            y: { 
+                                beginAtZero: true,
+                                min: 0,
+                                title: { display: true, text: 'Количество открытий' }
                             }
                         }
                     }
-                }
-            });
+                });
+            }
 
-            // СВП - ежедневные
-            detailCharts.svpDaily = new Chart('svpDailyChart', {
-                type: 'line',
-                data: {
-                    labels: dates,
-                    datasets: [{
-                        label: 'СВП',
-                        data: data.daily.map(d => d.svp),
-                        borderColor: '#ff7f0e',
-                        backgroundColor: 'rgba(255, 127, 14, 0.1)',
-                        tension: 0.3
-                    }]
-                }
-            });
+            // 2. СВП - ежедневные
+            const svpDailyCanvas = document.getElementById('svpDailyChart');
+            if (svpDailyCanvas) {
+                detailCharts.svpDaily = new Chart(svpDailyCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: daysFromStart,
+                        datasets: [{
+                            label: 'СВП',
+                            data: data.daily.map(d => d.svp),
+                            borderColor: '#ff7f0e',
+                            backgroundColor: 'rgba(255, 127, 14, 0.1)',
+                            tension: 0.3,
+                            pointRadius: 1,
+                            borderWidth: 2,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            annotation: { annotations: annotations }
+                        },
+                        scales: {
+                            x: { 
+                                title: { display: true, text: 'День с начала релиза' },
+                                min: 1,
+                                max: daysCount
+                            },
+                            y: { 
+                                beginAtZero: true,
+                                min: 0,
+                                title: { display: true, text: 'Количество открытий' }
+                            }
+                        }
+                    }
+                });
+            }
 
-            // СВП - производная
-            detailCharts.svpDeriv = new Chart('svpDerivChart', {
-                type: 'line',
-                data: {
-                    labels: dates,
-                    datasets: [{
-                        label: 'Производная СВП',
-                        data: data.derivatives.svp.slice(0, dates.length),
-                        borderColor: '#ff7f0e',
-                        borderDash: [5, 5],
-                        tension: 0.3
-                    }]
-                }
-            });
+            // 3. VA - ежедневные
+            const vaDailyCanvas = document.getElementById('vaDailyChart');
+            if (vaDailyCanvas) {
+                detailCharts.vaDaily = new Chart(vaDailyCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: daysFromStart,
+                        datasets: [{
+                            label: 'VA',
+                            data: data.daily.map(d => d.va),
+                            borderColor: '#2ca02c',
+                            backgroundColor: 'rgba(44, 160, 44, 0.1)',
+                            tension: 0.3,
+                            pointRadius: 1,
+                            borderWidth: 2,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            annotation: { annotations: annotations }
+                        },
+                        scales: {
+                            x: { 
+                                title: { display: true, text: 'День с начала релиза' },
+                                min: 1,
+                                max: daysCount
+                            },
+                            y: { 
+                                beginAtZero: true,
+                                min: 0,
+                                title: { display: true, text: 'Количество открытий' }
+                            }
+                        }
+                    }
+                });
+            }
 
-            // VA - ежедневные
-            detailCharts.vaDaily = new Chart('vaDailyChart', {
-                type: 'line',
-                data: {
-                    labels: dates,
-                    datasets: [{
-                        label: 'VA',
-                        data: data.daily.map(d => d.va),
-                        borderColor: '#2ca02c',
-                        backgroundColor: 'rgba(44, 160, 44, 0.1)',
-                        tension: 0.3
-                    }]
-                }
-            });
+            // 4. Приложение - ежедневные
+            const appDailyCanvas = document.getElementById('appDailyChart');
+            if (appDailyCanvas) {
+                detailCharts.appDaily = new Chart(appDailyCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: daysFromStart,
+                        datasets: [{
+                            label: 'Приложение',
+                            data: data.daily.map(d => d.app),
+                            borderColor: '#d62728',
+                            backgroundColor: 'rgba(214, 39, 40, 0.1)',
+                            tension: 0.3,
+                            pointRadius: 1,
+                            borderWidth: 2,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            annotation: { annotations: annotations }
+                        },
+                        scales: {
+                            x: { 
+                                title: { display: true, text: 'День с начала релиза' },
+                                min: 1,
+                                max: daysCount
+                            },
+                            y: { 
+                                beginAtZero: true,
+                                min: 0,
+                                title: { display: true, text: 'Количество открытий' }
+                            }
+                        }
+                    }
+                });
+            }
 
-            // VA - производная
-            detailCharts.vaDeriv = new Chart('vaDerivChart', {
-                type: 'line',
-                data: {
-                    labels: dates,
-                    datasets: [{
-                        label: 'Производная VA',
-                        data: data.derivatives.va.slice(0, dates.length),
-                        borderColor: '#2ca02c',
-                        borderDash: [5, 5],
-                        tension: 0.3
-                    }]
-                }
-            });
+            // 5. Производная кнопки
+            const buttonDerivCanvas = document.getElementById('buttonDerivChart');
+            if (buttonDerivCanvas) {
+                const buttonDerivData = derivIndices.map(i => data.derivatives.button[i] || 0);
+                const maxAbsButton = Math.max(...buttonDerivData.map(Math.abs)) * 1.2 || 1;
+                
+                detailCharts.buttonDeriv = new Chart(buttonDerivCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: derivLabels,
+                        datasets: [{
+                            label: 'Производная кнопки',
+                            data: buttonDerivData,
+                            borderColor: '#1f77b4',
+                            tension: 0.1,
+                            pointRadius: 4,
+                            borderWidth: 3,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            annotation: { annotations: createAnnotations(daysCount) }
+                        },
+                        scales: {
+                            x: { 
+                                title: { display: true, text: 'День с начала релиза' },
+                                min: 1,
+                                max: daysCount
+                            },
+                            y: { 
+                                title: { display: true, text: 'Производная' },
+                                min: -maxAbsButton,
+                                max: maxAbsButton,
+                                grid: {
+                                    color: context => context.tick.value === 0 ? '#000000' : '#e0e0e0',
+                                    lineWidth: context => context.tick.value === 0 ? 2 : 1
+                                }
+                            }
+                        }
+                    }
+                });
+            }
 
-            // Приложение - ежедневные
-            detailCharts.appDaily = new Chart('appDailyChart', {
-                type: 'line',
-                data: {
-                    labels: dates,
-                    datasets: [{
-                        label: 'Приложение',
-                        data: data.daily.map(d => d.app),
-                        borderColor: '#d62728',
-                        backgroundColor: 'rgba(214, 39, 40, 0.1)',
-                        tension: 0.3
-                    }]
-                }
-            });
+            // 6. Производная СВП
+            const svpDerivCanvas = document.getElementById('svpDerivChart');
+            if (svpDerivCanvas) {
+                const svpDerivData = derivIndices.map(i => data.derivatives.svp[i] || 0);
+                const maxAbsSvp = Math.max(...svpDerivData.map(Math.abs)) * 1.2 || 1;
+                
+                detailCharts.svpDeriv = new Chart(svpDerivCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: derivLabels,
+                        datasets: [{
+                            label: 'Производная СВП',
+                            data: svpDerivData,
+                            borderColor: '#ff7f0e',
+                            tension: 0.1,
+                            pointRadius: 4,
+                            borderWidth: 3,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            annotation: { annotations: createAnnotations(daysCount) }
+                        },
+                        scales: {
+                            x: { 
+                                title: { display: true, text: 'День с начала релиза' },
+                                min: 1,
+                                max: daysCount
+                            },
+                            y: { 
+                                title: { display: true, text: 'Производная' },
+                                min: -maxAbsSvp,
+                                max: maxAbsSvp,
+                                grid: {
+                                    color: context => context.tick.value === 0 ? '#000000' : '#e0e0e0',
+                                    lineWidth: context => context.tick.value === 0 ? 2 : 1
+                                }
+                            }
+                        }
+                    }
+                });
+            }
 
-            // Приложение - производная
-            detailCharts.appDeriv = new Chart('appDerivChart', {
-                type: 'line',
-                data: {
-                    labels: dates,
-                    datasets: [{
-                        label: 'Производная приложения',
-                        data: data.derivatives.app.slice(0, dates.length),
-                        borderColor: '#d62728',
-                        borderDash: [5, 5],
-                        tension: 0.3
-                    }]
-                }
-            });
+            // 7. Производная VA
+            const vaDerivCanvas = document.getElementById('vaDerivChart');
+            if (vaDerivCanvas) {
+                const vaDerivData = derivIndices.map(i => data.derivatives.va[i] || 0);
+                const maxAbsVa = Math.max(...vaDerivData.map(Math.abs)) * 1.2 || 1;
+                
+                detailCharts.vaDeriv = new Chart(vaDerivCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: derivLabels,
+                        datasets: [{
+                            label: 'Производная VA',
+                            data: vaDerivData,
+                            borderColor: '#2ca02c',
+                            tension: 0.1,
+                            pointRadius: 4,
+                            borderWidth: 3,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            annotation: { annotations: createAnnotations(daysCount) }
+                        },
+                        scales: {
+                            x: { 
+                                title: { display: true, text: 'День с начала релиза' },
+                                min: 1,
+                                max: daysCount
+                            },
+                            y: { 
+                                title: { display: true, text: 'Производная' },
+                                min: -maxAbsVa,
+                                max: maxAbsVa,
+                                grid: {
+                                    color: context => context.tick.value === 0 ? '#000000' : '#e0e0e0',
+                                    lineWidth: context => context.tick.value === 0 ? 2 : 1
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 8. Производная приложения
+            const appDerivCanvas = document.getElementById('appDerivChart');
+            if (appDerivCanvas) {
+                const appDerivData = derivIndices.map(i => data.derivatives.app[i] || 0);
+                const maxAbsApp = Math.max(...appDerivData.map(Math.abs)) * 1.2 || 1;
+                
+                detailCharts.appDeriv = new Chart(appDerivCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: derivLabels,
+                        datasets: [{
+                            label: 'Производная приложения',
+                            data: appDerivData,
+                            borderColor: '#d62728',
+                            tension: 0.1,
+                            pointRadius: 4,
+                            borderWidth: 3,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            annotation: { annotations: createAnnotations(daysCount) }
+                        },
+                        scales: {
+                            x: { 
+                                title: { display: true, text: 'День с начала релиза' },
+                                min: 1,
+                                max: daysCount
+                            },
+                            y: { 
+                                title: { display: true, text: 'Производная' },
+                                min: -maxAbsApp,
+                                max: maxAbsApp,
+                                grid: {
+                                    color: context => context.tick.value === 0 ? '#000000' : '#e0e0e0',
+                                    lineWidth: context => context.tick.value === 0 ? 2 : 1
+                                }
+                            }
+                        }
+                    }
+                });
+            }
         }
 
         // Обработка ресайза
