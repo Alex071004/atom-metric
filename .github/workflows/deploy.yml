@@ -33,23 +33,19 @@ jobs:
           pip install -r requirements.txt
       
       - name: Create output directory
-        run: mkdir -p output  # <-- ВАЖНО: создаем папку
+        run: mkdir -p output
       
       - name: Generate static site
         run: |
           python -m app.static_builder
       
-      - name: Copy frontend files (if not copied by builder)
-        run: |
-          cp -r frontend/* output/ 2>/dev/null || echo "Frontend files already there"
-      
-      - name: List output directory (debug)
+      - name: List output directory
         run: ls -la output/
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './output'  # теперь папка точно существует
+          path: './output'
 
   deploy:
     environment:
