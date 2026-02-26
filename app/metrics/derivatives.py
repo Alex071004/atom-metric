@@ -1,4 +1,4 @@
-"""Упрощенное вычисление производных с увеличенным шагом."""
+"""Вычисление производных с прореживанием данных."""
 import numpy as np
 import pandas as pd
 from typing import Dict, List, Tuple
@@ -9,53 +9,51 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
 class DerivativeCalculator:
-    """Калькулятор производных с настраиваемым шагом."""
+    """Калькулятор производных с прореживанием данных."""
     
     def __init__(self, step: int = 5):
         """
-        step: шаг дифференцирования (количество дней между точками)
-        Чем больше шаг, тем сильнее сглаживание и лучше виден тренд
+        step: шаг прореживания (берем каждую step-ю точку)
         """
         self.step = step
     
     def calculate_derivatives(self, values: List[int]) -> List[float]:
         """
-        Вычисление производных с заданным шагом.
-        Результат на одну машину.
+        Вычисление производных на прореженных данных.
+        Возвращает массив той же длины, но с интерполированными значениями.
         """
         y = np.array(values) / config.CARS_COUNT
         x = np.arange(len(y))
         
-        # Производная через разность с шагом step
+        # Создаем массив для результатов
         derivatives = np.zeros_like(y)
         
-        if len(y) > self.step:
-            # Для внутренних точек используем центральную разность с шагом step
-            for i in range(self.step, len(y) - self.step):
-                derivatives[i] = (y[i + self.step] - y[i - self.step]) / (x[i + self.step] - x[i - self.step])
+        # Берем каждую step-ю точку для вычисления производных
+        indices = list(range(0, len(y), self.step))
+        
+        # Если точек太少, добавляем последнюю
+        if indices[-1] != len(y) - 1:
+            indices.append(len(y) - 1)
+        
+        # Вычисляем производные только на выбранных точках
+        deriv_at_indices = []
+        for i in range(len(indices) - 1):
+            idx1 = indices[i]
+            idx2 = indices[i + 1]
             
-            # Для начала ряда (первые step точек) - используем возрастающий шаг
-            for i in range(1, self.step):
-                if i + self.step < len(y):
-                    derivatives[i] = (y[i + self.step] - y[0]) / (x[i + self.step] - x[0])
+            # Производная = (y2 - y1) / (x2 - x1)
+            deriv = (y[idx2] - y[idx1]) / (x[idx2] - x[idx1])
+            deriv_at_indices.append(deriv)
             
-            # Для конца ряда (последние step точек) - используем убывающий шаг
-            for i in range(len(y) - self.step, len(y)):
-                if i - self.step >= 0:
-                    derivatives[i] = (y[-1] - y[i - self.step]) / (x[-1] - x[i - self.step])
-            
-            # Самая первая и самая последняя точки - экстраполяция
-            if self.step < len(y):
-                derivatives[0] = derivatives[self.step]
-                derivatives[-1] = derivatives[-self.step - 1]
-        else:
-            # Если данных мало, используем обычный метод
-            if len(y) >= 2:
-                derivatives[0] = (y[1] - y[0]) / (x[1] - x[0])
-                derivatives[-1] = (y[-1] - y[-2]) / (x[-1] - x[-2])
-            
-            for i in range(1, len(y)-1):
-                derivatives[i] = (y[i+1] - y[i-1]) / (x[i+1] - x[i-1])
+            # Заполняем все точки между idx1 и idx2 этим значением
+            for j in range(idx1, idx2):
+                derivatives[j] = deriv
+        
+        # Заполняем последний отрезок
+        if len(indices) >= 2:
+            last_deriv = deriv_at_indices[-1]
+            for j in range(indices[-2], len(y)):
+                derivatives[j] = last_deriv
         
         return derivatives.tolist()
     
