@@ -75,10 +75,13 @@ class DataGenerator:
         svp_counts = []
         va_counts = []
         app_counts = []
+
+        N_fixed = config.TOTAL_AVG_OPENINGS
         
         for t in range(config.DAYS):
             # Общее число открытий в день (Пуассон со средним TOTAL_AVG_OPENINGS)
-            N = self.rng.poisson(config.TOTAL_AVG_OPENINGS)
+            """N = self.rng.poisson(config.TOTAL_AVG_OPENINGS)"""
+            N = N_fixed
             # Мультиномиальное распределение по тачпоинтам
             probs = [p_button[t], p_svp[t], p_va[t], p_app[t]]
             counts = self.rng.multinomial(N, probs)
@@ -93,4 +96,5 @@ class DataGenerator:
             svp=svp_counts,
             va=va_counts,
             app=app_counts
+
         )
