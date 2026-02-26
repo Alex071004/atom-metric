@@ -1,3 +1,7 @@
+from datetime import datetime, timedelta
+
+START_DATE = datetime.now().date() - timedelta(days=DAYS-1)
+
 DAYS = 90
 TREND_DAYS = 60
 CARS_COUNT = 100
