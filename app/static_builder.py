@@ -12,12 +12,12 @@ import config
 class StaticSiteBuilder:
     """Сборщик статического сайта."""
     
-    def __init__(self, output_dir="output"):
+    def __init__(self, output_dir="output", deriv_step: int = 5):
         self.output_dir = output_dir
+        self.deriv_step = deriv_step  # шаг для производных
         self.data = None
         self.df = None
         self.metrics = None
-        self.deriv_calc = DerivativeCalculator()
         
     def generate_data(self, seed=42):
         """Генерация данных."""
@@ -25,7 +25,8 @@ class StaticSiteBuilder:
         generator = DataGenerator(seed=seed)
         self.data = generator.generate()
         self.df = self.data.to_dataframe()
-        self.metrics = MetricsAggregator(self.df)
+        # Передаем шаг в MetricsAggregator
+        self.metrics = MetricsAggregator(self.df, deriv_step=self.deriv_step)
         return self
     
     def build_json_data(self):
@@ -46,13 +47,8 @@ class StaticSiteBuilder:
                 'total': int(row['button'] + row['svp'] + row['va'] + row['app'])
             })
         
-        # Производные
-        derivatives = {
-            'button': self.deriv_calc.calculate_derivatives(self.df['button'].tolist()),
-            'svp': self.deriv_calc.calculate_derivatives(self.df['svp'].tolist()),
-            'va': self.deriv_calc.calculate_derivatives(self.df['va'].tolist()),
-            'app': self.deriv_calc.calculate_derivatives(self.df['app'].tolist())
-        }
+        # Производные (уже посчитаны в metrics.derivatives)
+        derivatives = self.metrics.derivatives
         
         output = {
             'generated_at': datetime.now().isoformat(),
@@ -62,7 +58,8 @@ class StaticSiteBuilder:
                 'max_daily': float(summary['max_daily']),
                 'min_daily': float(summary['min_daily']),
                 'days': int(len(self.df)),
-                'cars': int(config.CARS_COUNT)
+                'cars': int(config.CARS_COUNT),
+                'deriv_step': self.deriv_step  # добавляем информацию о шаге
             },
             'by_touchpoint': {
                 tp: {
@@ -97,7 +94,7 @@ class StaticSiteBuilder:
                     shutil.copy2(src, dst)
                     print(f"   ✅ Скопирован: {file}")
         else:
-            print(f"❌ Папка frontend не найдена!")
+            print(f"❌ Папка фронтенда не найдена!")
         
         return self
     
@@ -118,5 +115,6 @@ class StaticSiteBuilder:
         return self
 
 if __name__ == "__main__":
-    builder = StaticSiteBuilder(output_dir="output")
+    # Шаг 5 дает хорошее сглаживание для 90 дней
+    builder = StaticSiteBuilder(output_dir="output", deriv_step=5)
     builder.generate_data(seed=42).build()
