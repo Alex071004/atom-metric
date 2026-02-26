@@ -3,52 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>АТОМ Metrics</title>
+    <title>АТОМ Metrics - Анализ открытий дверей</title>
+    
+    <!-- Подключение стилей (из той же папки) -->
     <link rel="stylesheet" href="styles.css">
+    
+    <!-- Подключение Chart.js для графиков -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+    <!-- Подключение Moment.js для работы с датами (опционально) -->
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+    
+    <style>
+        /* Временные стили на случай, если styles.css не загрузится */
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: #f5f5f5; 
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: #666;
+        }
+    </style>
 </head>
 <body>
     <div class="app">
+        <!-- Шапка -->
         <header>
             <h1>🚗 АТОМ Metrics</h1>
             <p>Анализ открытий дверей по тачпоинтам</p>
-            <div class="last-updated" id="lastUpdated"></div>
         </header>
 
+        <!-- Навигация -->
         <nav>
             <a href="index.html" class="active">Главная</a>
-            <a href="dashboard.html">Дашборд</a>
-            <a href="touchpoint.html">Детально</a>
+            <a href="dashboard.html">Детальный дашборд</a>
         </nav>
 
-        <div class="stats-cards" id="statsCards"></div>
-
-        <div class="charts-grid">
-            <div class="chart-card">
-                <h3>Все тачпоинты</h3>
-                <canvas id="allTouchpointsChart"></canvas>
-            </div>
-            <div class="chart-card">
-                <h3>Распределение</h3>
-                <canvas id="pieChart"></canvas>
-            </div>
+        <!-- Индикатор загрузки -->
+        <div id="loading" class="loading">
+            Загрузка данных...
         </div>
 
-        <div class="charts-grid">
+        <!-- Блок со статистикой (заполняется через JavaScript) -->
+        <div class="stats-cards" id="statsCards" style="display: none;">
+            <!-- Карточки будут добавлены динамически -->
+        </div>
+
+        <!-- Сетка графиков -->
+        <div class="charts-grid" id="chartsGrid" style="display: none;">
+            <!-- График всех тачпоинтов -->
             <div class="chart-card">
-                <h3>Суммарные открытия</h3>
+                <h3>📈 Все тачпоинты</h3>
+                <canvas id="allTouchpointsChart"></canvas>
+            </div>
+            
+            <!-- Круговая диаграмма -->
+            <div class="chart-card">
+                <h3>🥧 Распределение</h3>
+                <canvas id="pieChart"></canvas>
+            </div>
+            
+            <!-- Суммарные открытия -->
+            <div class="chart-card">
+                <h3>📊 Суммарные открытия</h3>
                 <canvas id="totalChart"></canvas>
             </div>
+            
+            <!-- Производные -->
             <div class="chart-card">
-                <h3>Производные</h3>
+                <h3>📉 Производные (на 1 машину)</h3>
                 <canvas id="derivativesChart"></canvas>
             </div>
         </div>
 
-        <div class="data-table">
-            <h3>Последние 10 дней</h3>
-            <table id="recentTable">
+        <!-- Блок с последними данными -->
+        <div class="data-table" id="dataTable" style="display: none;">
+            <h3>📋 Последние 10 дней</h3>
+            <table>
                 <thead>
                     <tr>
                         <th>Дата</th>
@@ -59,166 +94,19 @@
                         <th>Всего</th>
                     </tr>
                 </thead>
-                <tbody id="tableBody"></tbody>
+                <tbody id="tableBody">
+                    <!-- Данные будут добавлены динамически -->
+                </tbody>
             </table>
+        </div>
+
+        <!-- Блок с ошибкой (если данные не загрузятся) -->
+        <div id="error" class="error" style="display: none; color: red; text-align: center; padding: 20px;">
+            Ошибка загрузки данных
         </div>
     </div>
 
+    <!-- Подключение основного скрипта -->
     <script src="script.js"></script>
 </body>
 </html>
-frontend/script.js
-javascript
-// Загрузка данных
-let chartInstances = {};
-
-async function loadData() {
-    try {
-        const response = await fetch('data.json');
-        const data = await response.json();
-        
-        document.getElementById('lastUpdated').textContent = 
-            `Обновлено: ${new Date(data.generated_at).toLocaleString('ru-RU')}`;
-        
-        updateStatsCards(data);
-        updateCharts(data);
-        updateTable(data);
-    } catch (error) {
-        console.error('Ошибка загрузки:', error);
-    }
-}
-
-function updateStatsCards(data) {
-    const cards = document.getElementById('statsCards');
-    cards.innerHTML = `
-        <div class="stat-card">
-            <div class="stat-value">${data.summary.total_opens.toLocaleString()}</div>
-            <div class="stat-label">Всего открытий</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value">${data.summary.avg_daily.toFixed(1)}</div>
-            <div class="stat-label">В среднем в день</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value">${data.summary.max_daily}</div>
-            <div class="stat-label">Макс в день</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value">${data.summary.days}</div>
-            <div class="stat-label">Дней</div>
-        </div>
-    `;
-}
-
-function updateCharts(data) {
-    // Уничтожаем старые графики
-    Object.values(chartInstances).forEach(chart => chart.destroy());
-    
-    // Подготовка данных
-    const dates = data.daily.map(d => d.date.slice(5)); // MM-DD
-    
-    // График всех тачпоинтов
-    chartInstances.all = new Chart('allTouchpointsChart', {
-        type: 'line',
-        data: {
-            labels: dates,
-            datasets: [
-                {
-                    label: 'Кнопка',
-                    data: data.daily.map(d => d.button),
-                    borderColor: '#1f77b4',
-                    tension: 0.3
-                },
-                {
-                    label: 'СВП',
-                    data: data.daily.map(d => d.svp),
-                    borderColor: '#ff7f0e',
-                    tension: 0.3
-                },
-                {
-                    label: 'VA',
-                    data: data.daily.map(d => d.va),
-                    borderColor: '#2ca02c',
-                    tension: 0.3
-                },
-                {
-                    label: 'Приложение',
-                    data: data.daily.map(d => d.app),
-                    borderColor: '#d62728',
-                    tension: 0.3
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
-        }
-    });
-    
-    // Круговая диаграмма
-    chartInstances.pie = new Chart('pieChart', {
-        type: 'doughnut',
-        data: {
-            labels: Object.values(data.by_touchpoint).map(tp => tp.name),
-            datasets: [{
-                data: Object.values(data.by_touchpoint).map(tp => tp.total),
-                backgroundColor: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
-            }]
-        }
-    });
-    
-    // Суммарные открытия
-    chartInstances.total = new Chart('totalChart', {
-        type: 'line',
-        data: {
-            labels: dates,
-            datasets: [{
-                label: 'Всего открытий',
-                data: data.daily.map(d => d.total),
-                borderColor: '#9467bd',
-                fill: true,
-                backgroundColor: 'rgba(148, 103, 189, 0.1)',
-                tension: 0.3
-            }]
-        }
-    });
-    
-    // Производные
-    chartInstances.derivatives = new Chart('derivativesChart', {
-        type: 'line',
-        data: {
-            labels: dates.slice(1),
-            datasets: [
-                {
-                    label: 'Кнопка',
-                    data: data.derivatives.button.slice(0, -1),
-                    borderColor: '#1f77b4',
-                    borderDash: [5, 5]
-                },
-                {
-                    label: 'СВП',
-                    data: data.derivatives.svp.slice(0, -1),
-                    borderColor: '#ff7f0e',
-                    borderDash: [5, 5]
-                }
-            ]
-        }
-    });
-}
-
-function updateTable(data) {
-    const tbody = document.getElementById('tableBody');
-    tbody.innerHTML = data.daily.slice(-10).reverse().map(day => `
-        <tr>
-            <td>${day.date}</td>
-            <td>${day.button}</td>
-            <td>${day.svp}</td>
-            <td>${day.va}</td>
-            <td>${day.app}</td>
-            <td><strong>${day.total}</strong></td>
-        </tr>
-    `).join('');
-}
-
-// Запуск
-loadData();
