@@ -110,112 +110,35 @@ class StaticSiteBuilder:
         return self
     
     def build(self):
-        """Полная сборка с гарантированным созданием index.html"""
+         """Просто копирует frontend и добавляет data.json"""
         print("🏗️ Запуск сборки...")
         
         os.makedirs(self.output_dir, exist_ok=True)
-        print(f"📁 Папка output: {os.path.abspath(self.output_dir)}")
         
+        # 1. Генерируем данные
         self.build_json_data()
-        self.copy_frontend()
         
-        index_path = os.path.join(self.output_dir, "index.html")
+        # 2. Копируем ВСЕ файлы из frontend в output
+        frontend_dir = os.path.join(os.path.dirname(__file__), "../frontend")
+        frontend_dir = os.path.abspath(frontend_dir)
         
-        if not os.path.exists(index_path):
-            print("⚠️ index.html не найден, создаем упрощенную версию...")
-            
-            data_path = os.path.join(self.output_dir, "data.json")
-            if os.path.exists(data_path):
-                with open(data_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                total_opens = data['summary']['total_opens']
-            else:
-                total_opens = "N/A"
-            
-            # Исправленный HTML с правильными путями и без дублирования графиков
-            html_content = f'''<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>АТОМ Metrics</title>
-    <!-- ПРАВИЛЬНЫЙ ПУТЬ к CSS -->
-    <link rel="stylesheet" href="frontend/styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
-    <div class="app">
-        <header>
-            <h1>🚗 АТОМ Metrics</h1>
-            <p>Анализ открытий дверей по тачпоинтам</p>
-        </header>
-        
-        <nav>
-            <a href="index.html" class="active">Главная</a>
-            <a href="frontend/dashboard.html">Дашборд</a>
-        </nav>
-        
-        <div class="stats-cards" id="statsCards">
-            <div class="stat-card">
-                <div class="stat-value">{total_opens}</div>
-                <div class="stat-label">Всего открытий</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="avgDaily">...</div>
-                <div class="stat-label">В среднем в день</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="cars">{config.CARS_COUNT}</div>
-                <div class="stat-label">Машин в парке</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="days">{len(self.df)}</div>
-                <div class="stat-label">Дней</div>
-            </div>
-        </div>
-        
-        <!-- Контейнеры для графиков будут заполнены из frontend/script.js -->
-        <div class="charts-grid">
-            <div class="chart-card">
-                <h3>Все тачпоинты</h3>
-                <canvas id="allTouchpointsChart"></canvas>
-            </div>
-            <div class="chart-card">
-                <h3>Распределение</h3>
-                <canvas id="pieChart"></canvas>
-            </div>
-        </div>
-        
-        <div class="charts-grid">
-            <div class="chart-card">
-                <h3>Суммарные открытия</h3>
-                <canvas id="totalChart"></canvas>
-            </div>
-            <div class="chart-card">
-                <h3>Производные</h3>
-                <canvas id="derivativesChart"></canvas>
-            </div>
-        </div>
-    </div>
-    
-    <!-- ПРАВИЛЬНЫЕ ПУТИ к скриптам. ВАЖНО: сначала data, потом script -->
-    <script src="data.json" id="data-json"></script>
-    <script src="frontend/script.js"></script>
-</body>
-</html>'''
-            
-            with open(index_path, 'w', encoding='utf-8') as f:
-                f.write(html_content)
-            print(f"✅ Создан index.html в {index_path}")
+        if os.path.exists(frontend_dir):
+            for file in os.listdir(frontend_dir):
+                src = os.path.join(frontend_dir, file)
+                dst = os.path.join(self.output_dir, file)
+                if os.path.isfile(src):
+                    shutil.copy2(src, dst)
+                    print(f"   ✅ Скопирован: {file}")
         else:
-            print(f"✅ index.html уже существует в {index_path}")
+            print(f"❌ Папка frontend не найдена!")
+            return self
         
-        print("\n📋 Содержимое output:")
+        print(f"\n📋 Содержимое output:")
         for f in os.listdir(self.output_dir):
             size = os.path.getsize(os.path.join(self.output_dir, f))
             print(f"   - {f} ({size} байт)")
         
-        print("\n✅ Сборка завершена успешно!")
+        print(f"\n✅ Сборка завершена! Главный файл: {os.path.join(self.output_dir, 'index.html')}")
         return self
 
 if __name__ == "__main__":
