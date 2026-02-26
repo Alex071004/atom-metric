@@ -228,105 +228,100 @@ function createAllCharts(data) {
         }
     });
     
-    // 4. Производные - ИСПРАВЛЕНО
-    const derivCtx = document.getElementById('derivativesChart').getContext('2d');
-    
-    // Находим максимальное абсолютное значение для масштабирования
-    const allDerivValues = [
-        ...data.derivatives.button,
-        ...data.derivatives.svp,
-        ...data.derivatives.va,
-        ...data.derivatives.app
-    ].filter(v => !isNaN(v) && isFinite(v));
-    
-    const maxAbsDeriv = Math.max(...allDerivValues.map(Math.abs)) * 1.2;
-    
-    chartInstances.derivatives = new Chart(derivCtx, {
-        type: 'line',
-        data: {
-            labels: daysFromStart,  // те же дни, что и для основных данных
-            datasets: [
-                {
-                    label: 'Кнопка',
-                    data: data.derivatives.button,
-                    borderColor: '#1f77b4',
-                    tension: 0.1,
-                    pointRadius: 0.5,
-                    borderWidth: 2
-                },
-                {
-                    label: 'СВП',
-                    data: data.derivatives.svp,
-                    borderColor: '#ff7f0e',
-                    tension: 0.1,
-                    pointRadius: 0.5,
-                    borderWidth: 2
-                },
-                {
-                    label: 'VA',
-                    data: data.derivatives.va,
-                    borderColor: '#2ca02c',
-                    tension: 0.1,
-                    pointRadius: 0.5,
-                    borderWidth: 2
-                },
-                {
-                    label: 'Приложение',
-                    data: data.derivatives.app,
-                    borderColor: '#d62728',
-                    tension: 0.1,
-                    pointRadius: 0.5,
-                    borderWidth: 2
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' },
-                annotation: { annotations: annotations }
+    // 4. Производные - теперь отображаем только каждую 5-ю точку
+const derivCtx = document.getElementById('derivativesChart').getContext('2d');
+
+// Создаем массив индексов для отображения (каждый 5-й день)
+const displayIndices = [];
+for (let i = 0; i < daysFromStart.length; i += 5) {
+    displayIndices.push(i);
+}
+// Добавляем последний день, если его нет
+if (displayIndices[displayIndices.length - 1] !== daysFromStart.length - 1) {
+    displayIndices.push(daysFromStart.length - 1);
+}
+
+// Подготавливаем данные только для отображаемых индексов
+const derivLabels = displayIndices.map(i => daysFromStart[i]);
+const buttonDerivData = displayIndices.map(i => data.derivatives.button[i]);
+const svpDerivData = displayIndices.map(i => data.derivatives.svp[i]);
+const vaDerivData = displayIndices.map(i => data.derivatives.va[i]);
+const appDerivData = displayIndices.map(i => data.derivatives.app[i]);
+
+// Находим максимальное абсолютное значение для масштабирования
+const allDerivValues = [
+    ...buttonDerivData,
+    ...svpDerivData,
+    ...vaDerivData,
+    ...appDerivData
+].filter(v => !isNaN(v) && isFinite(v));
+
+const maxAbsDeriv = Math.max(...allDerivValues.map(Math.abs)) * 1.2;
+
+chartInstances.derivatives = new Chart(derivCtx, {
+    type: 'line',
+    data: {
+        labels: derivLabels,
+        datasets: [
+            {
+                label: 'Кнопка',
+                data: buttonDerivData,
+                borderColor: '#1f77b4',
+                tension: 0.1,
+                pointRadius: 4,
+                borderWidth: 3
             },
-            scales: {
-                x: { 
-                    title: { display: true, text: 'День с начала релиза' },
-                    min: 1,
-                    max: daysCount
-                },
-                y: { 
-                    title: { display: true, text: 'Производная' },
-                    min: -maxAbsDeriv,
-                    max: maxAbsDeriv,
-                    grid: {
-                        color: context => context.tick.value === 0 ? '#000000' : '#e0e0e0',
-                        lineWidth: context => context.tick.value === 0 ? 2 : 1
-                    }
+            {
+                label: 'СВП',
+                data: svpDerivData,
+                borderColor: '#ff7f0e',
+                tension: 0.1,
+                pointRadius: 4,
+                borderWidth: 3
+            },
+            {
+                label: 'VA',
+                data: vaDerivData,
+                borderColor: '#2ca02c',
+                tension: 0.1,
+                pointRadius: 4,
+                borderWidth: 3
+            },
+            {
+                label: 'Приложение',
+                data: appDerivData,
+                borderColor: '#d62728',
+                tension: 0.1,
+                pointRadius: 4,
+                borderWidth: 3
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom' },
+            annotation: { annotations: createAnnotations(daysCount) }
+        },
+        scales: {
+            x: { 
+                title: { display: true, text: 'День с начала релиза' },
+                min: 1,
+                max: daysCount
+            },
+            y: { 
+                title: { display: true, text: 'Производная (Δy/Δx)' },
+                min: -maxAbsDeriv,
+                max: maxAbsDeriv,
+                grid: {
+                    color: context => context.tick.value === 0 ? '#000000' : '#e0e0e0',
+                    lineWidth: context => context.tick.value === 0 ? 2 : 1
                 }
             }
         }
-    });
-}
-
-// Обновление таблицы
-function updateTable(data) {
-    const tbody = document.getElementById('tableBody');
-    tbody.innerHTML = '';
-    
-    const last10Days = data.daily.slice(-10).reverse();
-    
-    last10Days.forEach(day => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${day.date}</td>
-            <td>${day.button}</td>
-            <td>${day.svp}</td>
-            <td>${day.va}</td>
-            <td>${day.app}</td>
-            <td><strong>${day.total}</strong></td>
-        `;
-        tbody.appendChild(row);
-    });
-}
+    }
+});
 
 // Обработка ресайза
 window.addEventListener('resize', () => {
