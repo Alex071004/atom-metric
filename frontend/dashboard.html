@@ -128,7 +128,7 @@
     <script>
         // Глобальные переменные для графиков
         let detailCharts = {};
-
+    
         // Функция для создания вертикальных линий
         function createAnnotations(daysCount) {
             const annotations = {};
@@ -153,7 +153,7 @@
             
             return annotations;
         }
-
+    
         async function loadDetailData() {
             try {
                 const loadingEl = document.getElementById('loading');
@@ -188,7 +188,7 @@
                 }
             }
         }
-
+    
         function createDetailCharts(data) {
             // Уничтожаем старые графики
             Object.values(detailCharts).forEach(chart => {
@@ -196,26 +196,43 @@
             });
             
             const daysCount = data.daily.length;
-            const daysFromStart = data.daily.map((_, index) => index + 1);
+            
+            // ВАЖНО: создаем массив дней с начала релиза (1, 2, 3...)
+            // И прореживаем до каждых 5 дней для подписей
+            const allDays = [];
+            for (let i = 1; i <= daysCount; i++) {
+                allDays.push(i);
+            }
+            
+            // Создаем подписи для оси X (каждые 5 дней)
+            const xLabels = [];
+            for (let i = 1; i <= daysCount; i += 5) {
+                xLabels.push(i);
+            }
+            // Добавляем последний день если нужно
+            if (xLabels[xLabels.length - 1] !== daysCount) {
+                xLabels.push(daysCount);
+            }
+            
             const annotations = createAnnotations(daysCount);
             
             // Создаем массив индексов для производных (каждый 5-й день)
             const derivIndices = [];
-            for (let i = 0; i < daysFromStart.length; i += 5) {
+            for (let i = 0; i < allDays.length; i += 5) {
                 derivIndices.push(i);
             }
-            if (derivIndices[derivIndices.length - 1] !== daysFromStart.length - 1) {
-                derivIndices.push(daysFromStart.length - 1);
+            if (derivIndices[derivIndices.length - 1] !== allDays.length - 1) {
+                derivIndices.push(allDays.length - 1);
             }
-            const derivLabels = derivIndices.map(i => daysFromStart[i]);
-
+            const derivLabels = derivIndices.map(i => allDays[i]);
+    
             // 1. Кнопка - ежедневные
             const buttonDailyCanvas = document.getElementById('buttonDailyChart');
             if (buttonDailyCanvas) {
                 detailCharts.buttonDaily = new Chart(buttonDailyCanvas, {
                     type: 'line',
                     data: {
-                        labels: daysFromStart,
+                        labels: allDays,
                         datasets: [{
                             label: 'Кнопка',
                             data: data.daily.map(d => d.button),
@@ -238,7 +255,16 @@
                             x: { 
                                 title: { display: true, text: 'День с начала релиза' },
                                 min: 1,
-                                max: daysCount
+                                max: daysCount,
+                                ticks: {
+                                    callback: function(val, index) {
+                                        // Показываем только каждые 5 дней
+                                        if (val % 5 === 0 || val === 1 || val === daysCount) {
+                                            return val;
+                                        }
+                                        return '';
+                                    }
+                                }
                             },
                             y: { 
                                 beginAtZero: true,
@@ -249,14 +275,14 @@
                     }
                 });
             }
-
+    
             // 2. СВП - ежедневные
             const svpDailyCanvas = document.getElementById('svpDailyChart');
             if (svpDailyCanvas) {
                 detailCharts.svpDaily = new Chart(svpDailyCanvas, {
                     type: 'line',
                     data: {
-                        labels: daysFromStart,
+                        labels: allDays,
                         datasets: [{
                             label: 'СВП',
                             data: data.daily.map(d => d.svp),
@@ -279,7 +305,15 @@
                             x: { 
                                 title: { display: true, text: 'День с начала релиза' },
                                 min: 1,
-                                max: daysCount
+                                max: daysCount,
+                                ticks: {
+                                    callback: function(val, index) {
+                                        if (val % 5 === 0 || val === 1 || val === daysCount) {
+                                            return val;
+                                        }
+                                        return '';
+                                    }
+                                }
                             },
                             y: { 
                                 beginAtZero: true,
@@ -290,14 +324,14 @@
                     }
                 });
             }
-
+    
             // 3. VA - ежедневные
             const vaDailyCanvas = document.getElementById('vaDailyChart');
             if (vaDailyCanvas) {
                 detailCharts.vaDaily = new Chart(vaDailyCanvas, {
                     type: 'line',
                     data: {
-                        labels: daysFromStart,
+                        labels: allDays,
                         datasets: [{
                             label: 'VA',
                             data: data.daily.map(d => d.va),
@@ -320,7 +354,15 @@
                             x: { 
                                 title: { display: true, text: 'День с начала релиза' },
                                 min: 1,
-                                max: daysCount
+                                max: daysCount,
+                                ticks: {
+                                    callback: function(val, index) {
+                                        if (val % 5 === 0 || val === 1 || val === daysCount) {
+                                            return val;
+                                        }
+                                        return '';
+                                    }
+                                }
                             },
                             y: { 
                                 beginAtZero: true,
@@ -331,14 +373,14 @@
                     }
                 });
             }
-
+    
             // 4. Приложение - ежедневные
             const appDailyCanvas = document.getElementById('appDailyChart');
             if (appDailyCanvas) {
                 detailCharts.appDaily = new Chart(appDailyCanvas, {
                     type: 'line',
                     data: {
-                        labels: daysFromStart,
+                        labels: allDays,
                         datasets: [{
                             label: 'Приложение',
                             data: data.daily.map(d => d.app),
@@ -361,7 +403,15 @@
                             x: { 
                                 title: { display: true, text: 'День с начала релиза' },
                                 min: 1,
-                                max: daysCount
+                                max: daysCount,
+                                ticks: {
+                                    callback: function(val, index) {
+                                        if (val % 5 === 0 || val === 1 || val === daysCount) {
+                                            return val;
+                                        }
+                                        return '';
+                                    }
+                                }
                             },
                             y: { 
                                 beginAtZero: true,
@@ -372,7 +422,7 @@
                     }
                 });
             }
-
+    
             // 5. Производная кнопки
             const buttonDerivCanvas = document.getElementById('buttonDerivChart');
             if (buttonDerivCanvas) {
@@ -404,7 +454,15 @@
                             x: { 
                                 title: { display: true, text: 'День с начала релиза' },
                                 min: 1,
-                                max: daysCount
+                                max: daysCount,
+                                ticks: {
+                                    callback: function(val, index) {
+                                        if (val % 5 === 0 || val === 1 || val === daysCount) {
+                                            return val;
+                                        }
+                                        return '';
+                                    }
+                                }
                             },
                             y: { 
                                 title: { display: true, text: 'Производная' },
@@ -419,7 +477,7 @@
                     }
                 });
             }
-
+    
             // 6. Производная СВП
             const svpDerivCanvas = document.getElementById('svpDerivChart');
             if (svpDerivCanvas) {
@@ -451,7 +509,15 @@
                             x: { 
                                 title: { display: true, text: 'День с начала релиза' },
                                 min: 1,
-                                max: daysCount
+                                max: daysCount,
+                                ticks: {
+                                    callback: function(val, index) {
+                                        if (val % 5 === 0 || val === 1 || val === daysCount) {
+                                            return val;
+                                        }
+                                        return '';
+                                    }
+                                }
                             },
                             y: { 
                                 title: { display: true, text: 'Производная' },
@@ -466,7 +532,7 @@
                     }
                 });
             }
-
+    
             // 7. Производная VA
             const vaDerivCanvas = document.getElementById('vaDerivChart');
             if (vaDerivCanvas) {
@@ -498,7 +564,15 @@
                             x: { 
                                 title: { display: true, text: 'День с начала релиза' },
                                 min: 1,
-                                max: daysCount
+                                max: daysCount,
+                                ticks: {
+                                    callback: function(val, index) {
+                                        if (val % 5 === 0 || val === 1 || val === daysCount) {
+                                            return val;
+                                        }
+                                        return '';
+                                    }
+                                }
                             },
                             y: { 
                                 title: { display: true, text: 'Производная' },
@@ -513,7 +587,7 @@
                     }
                 });
             }
-
+    
             // 8. Производная приложения
             const appDerivCanvas = document.getElementById('appDerivChart');
             if (appDerivCanvas) {
@@ -545,7 +619,15 @@
                             x: { 
                                 title: { display: true, text: 'День с начала релиза' },
                                 min: 1,
-                                max: daysCount
+                                max: daysCount,
+                                ticks: {
+                                    callback: function(val, index) {
+                                        if (val % 5 === 0 || val === 1 || val === daysCount) {
+                                            return val;
+                                        }
+                                        return '';
+                                    }
+                                }
                             },
                             y: { 
                                 title: { display: true, text: 'Производная' },
@@ -561,14 +643,14 @@
                 });
             }
         }
-
+    
         // Обработка ресайза
         window.addEventListener('resize', () => {
             Object.values(detailCharts).forEach(chart => {
                 if (chart) chart.resize();
             });
         });
-
+    
         // Запуск при загрузке
         document.addEventListener('DOMContentLoaded', loadDetailData);
     </script>
