@@ -93,14 +93,31 @@ class StaticSiteBuilder:
         """Копирование фронтенда в output."""
         print("📁 Копирование фронтенда...")
         
-        # Копируем все HTML/CSS/JS
+        # Создаем output если нет
+        os.makedirs(self.output_dir, exist_ok=True)
+        
+        # Путь к фронтенду
         frontend_dir = os.path.join(os.path.dirname(__file__), "../frontend")
-        for file in os.listdir(frontend_dir):
-            if file.endswith(('.html', '.css', '.js')):
-                shutil.copy2(
-                    os.path.join(frontend_dir, file),
-                    os.path.join(self.output_dir, file)
-                )
+        frontend_dir = os.path.abspath(frontend_dir)
+        
+        print(f"   Копируем из: {frontend_dir}")
+        
+        # Копируем все файлы из frontend в output
+        if os.path.exists(frontend_dir):
+            for file in os.listdir(frontend_dir):
+                src = os.path.join(frontend_dir, file)
+                dst = os.path.join(self.output_dir, file)
+                if os.path.isfile(src):
+                    shutil.copy2(src, dst)
+                    print(f"   Скопирован: {file}")
+        else:
+            print(f"   Папка фронтенда не найдена: {frontend_dir}")
+        
+        # ВАЖНО: Если index.html лежит в frontend, он должен быть в корне output
+        if os.path.exists(os.path.join(self.output_dir, "index.html")):
+            print("✅ index.html скопирован в корень output")
+        else:
+            print("❌ index.html не найден!")
         
         return self
     
