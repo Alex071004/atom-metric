@@ -8,14 +8,17 @@ import config
 class MetricsAggregator:
     """Агрегатор всех метрик."""
     
-    def __init__(self, data: pd.DataFrame):
+    def __init__(self, data: pd.DataFrame, deriv_step: int = 5):
+        """
+        deriv_step: шаг для вычисления производных (по умолчанию 5 дней)
+        """
         self.data = data
         self.daily_total = IntegralCalculator.daily_total(data)
         self.total_integral = IntegralCalculator.total_all(data)
         self.totals_by_tp = IntegralCalculator.total_by_touchpoint(data)
         
-        # Исправление: убираем параметры, их больше нет
-        self.deriv_calc = DerivativeCalculator()
+        # Используем увеличенный шаг для сглаживания
+        self.deriv_calc = DerivativeCalculator(step=deriv_step)
         self.derivatives = self._calculate_all_derivatives()
         
     def _calculate_all_derivatives(self) -> Dict[str, list]:
