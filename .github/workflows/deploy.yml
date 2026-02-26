@@ -39,8 +39,19 @@ jobs:
         run: |
           python -m app.static_builder
       
-      - name: List output directory
-        run: ls -la output/
+      - name: Debug - show output directory
+        run: |
+          echo "=== СОДЕРЖИМОЕ output ==="
+          ls -la output/
+          echo "=== ПРОВЕРКА index.html ==="
+          if [ -f output/index.html ]; then
+            echo "✅ index.html существует"
+            echo "--- Первые 10 строк ---"
+            head -10 output/index.html
+          else
+            echo "❌ index.html НЕ НАЙДЕН"
+            exit 1
+          fi
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
