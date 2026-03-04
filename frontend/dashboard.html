@@ -73,33 +73,27 @@
 
         <div id="loading" class="loading">Загрузка данных...</div>
 
-        <!-- Детальные графики по каждому тачпоинту -->
         <div id="detailContent" style="display: none;">
-            <!-- Кнопка -->
             <div class="chart-card">
                 <h3>🔘 Кнопка - ежедневные открытия</h3>
                 <canvas id="buttonDailyChart"></canvas>
             </div>
             
-            <!-- СВП -->
             <div class="chart-card">
                 <h3>🔄 СВП (руль) - ежедневные открытия</h3>
                 <canvas id="svpDailyChart"></canvas>
             </div>
             
-            <!-- VA -->
             <div class="chart-card">
                 <h3>🎤 VA - ежедневные открытия</h3>
                 <canvas id="vaDailyChart"></canvas>
             </div>
             
-            <!-- Приложение -->
             <div class="chart-card">
                 <h3>📱 Приложение - ежедневные открытия</h3>
                 <canvas id="appDailyChart"></canvas>
             </div>
             
-            <!-- Производные -->
             <h2 style="margin: 30px 0 20px;">📈 Производные (на 1 машину)</h2>
             <div class="derivatives-container">
                 <div class="chart-card">
@@ -127,20 +121,16 @@
     <script type="module">
         import { supabase } from './supabase/supabase-config.js';
 
-        // Глобальные переменные для графиков
         let detailCharts = {};
 
-        // Получаем параметр source из URL
         const urlParams = new URLSearchParams(window.location.search);
         const dataSource = urlParams.get('source') || localStorage.getItem('dataSource') || 'synthetic';
         
-        // Отображаем источник данных
         const sourceInfo = document.getElementById('sourceInfo');
         sourceInfo.textContent = dataSource === 'synthetic' 
             ? '📊 Синтетические данные' 
             : '👥 Данные команды';
 
-        // Функция для создания вертикальных линий
         function createAnnotations(daysCount) {
             const annotations = {};
             
@@ -165,13 +155,11 @@
             return annotations;
         }
 
-        // Функция для вычисления производных (шаг 5)
         function calculateDerivatives(values) {
             if (values.length < 2) return values.map(() => 0);
             
             const result = new Array(values.length).fill(0);
             
-            // Создаем массив индексов для отображения (каждый 5-й день)
             const indices = [];
             for (let i = 0; i < values.length; i += 5) {
                 indices.push(i);
@@ -180,21 +168,17 @@
                 indices.push(values.length - 1);
             }
             
-            // Вычисляем производные только на выбранных точках
             for (let i = 0; i < indices.length - 1; i++) {
                 const idx1 = indices[i];
                 const idx2 = indices[i + 1];
                 
-                // Производная = (y2 - y1) / (x2 - x1)
                 const deriv = (values[idx2] - values[idx1]) / (idx2 - idx1);
                 
-                // Заполняем все точки между idx1 и idx2 этим значением
                 for (let j = idx1; j < idx2; j++) {
                     result[j] = deriv;
                 }
             }
             
-            // Заполняем последний отрезок
             if (indices.length >= 2) {
                 const lastDeriv = result[indices[indices.length - 2]];
                 for (let j = indices[indices.length - 2]; j < values.length; j++) {
@@ -218,12 +202,10 @@
                 let data;
                 
                 if (dataSource === 'synthetic') {
-                    // Загрузка синтетических данных
                     const response = await fetch('data.json');
                     if (!response.ok) throw new Error('Ошибка загрузки синтетических данных');
                     data = await response.json();
                 } else {
-                    // Загрузка данных команды из Supabase
                     const { data: sessions, error } = await supabase
                         .from('sessions')
                         .select('*')
@@ -234,7 +216,6 @@
                         throw new Error('Нет данных команды');
                     }
 
-                    // Агрегация по дням
                     const dailyMap = new Map();
                     sessions.forEach(session => {
                         const date = session.date;
@@ -256,7 +237,6 @@
                         }))
                         .sort((a, b) => a.date.localeCompare(b.date));
 
-                    // Вычисляем производные
                     const derivatives = {
                         button: calculateDerivatives(daily.map(d => d.button)),
                         svp: calculateDerivatives(daily.map(d => d.svp)),
@@ -264,10 +244,6 @@
                         app: calculateDerivatives(daily.map(d => d.app))
                     };
 
-                    const uniqueUsers = new Set(sessions.map(s => s.user_id)).size;
-                    // Эта информация может пригодиться для заголовка
-                    console.log(`Данные от ${uniqueUsers} пользователей`);
-                    
                     data = { daily, derivatives };
                 }
 
@@ -275,7 +251,7 @@
                 detailContent.style.display = 'block';
                 
                 createDetailCharts(data);
-                // Сохраняем источник при успешной загрузке
+                
                 localStorage.setItem('dataSource', dataSource);
                 
             } catch (error) {
@@ -288,14 +264,12 @@
         }
 
         function createDetailCharts(data) {
-            // Уничтожаем старые графики
             Object.values(detailCharts).forEach(chart => {
                 if (chart) chart.destroy();
             });
             
             const daysCount = data.daily.length;
             
-            // Создаем массив дней с начала релиза (1, 2, 3...)
             const allDays = [];
             for (let i = 1; i <= daysCount; i++) {
                 allDays.push(i);
@@ -303,7 +277,6 @@
             
             const annotations = createAnnotations(daysCount);
             
-            // Создаем массив индексов для производных (каждый 5-й день)
             const derivIndices = [];
             for (let i = 0; i < allDays.length; i += 5) {
                 derivIndices.push(i);
@@ -313,7 +286,6 @@
             }
             const derivLabels = derivIndices.map(i => allDays[i]);
 
-            // 1. Кнопка - ежедневные
             const buttonDailyCanvas = document.getElementById('buttonDailyChart');
             if (buttonDailyCanvas) {
                 detailCharts.buttonDaily = new Chart(buttonDailyCanvas, {
@@ -362,7 +334,6 @@
                 });
             }
 
-            // 2. СВП - ежедневные
             const svpDailyCanvas = document.getElementById('svpDailyChart');
             if (svpDailyCanvas) {
                 detailCharts.svpDaily = new Chart(svpDailyCanvas, {
@@ -411,7 +382,6 @@
                 });
             }
 
-            // 3. VA - ежедневные
             const vaDailyCanvas = document.getElementById('vaDailyChart');
             if (vaDailyCanvas) {
                 detailCharts.vaDaily = new Chart(vaDailyCanvas, {
@@ -460,7 +430,6 @@
                 });
             }
 
-            // 4. Приложение - ежедневные
             const appDailyCanvas = document.getElementById('appDailyChart');
             if (appDailyCanvas) {
                 detailCharts.appDaily = new Chart(appDailyCanvas, {
@@ -509,7 +478,6 @@
                 });
             }
 
-            // 5. Производная кнопки
             const buttonDerivCanvas = document.getElementById('buttonDerivChart');
             if (buttonDerivCanvas && data.derivatives) {
                 const buttonDerivData = derivIndices.map(i => data.derivatives.button[i] || 0);
@@ -564,7 +532,6 @@
                 });
             }
 
-            // 6. Производная СВП
             const svpDerivCanvas = document.getElementById('svpDerivChart');
             if (svpDerivCanvas && data.derivatives) {
                 const svpDerivData = derivIndices.map(i => data.derivatives.svp[i] || 0);
@@ -619,7 +586,6 @@
                 });
             }
 
-            // 7. Производная VA
             const vaDerivCanvas = document.getElementById('vaDerivChart');
             if (vaDerivCanvas && data.derivatives) {
                 const vaDerivData = derivIndices.map(i => data.derivatives.va[i] || 0);
@@ -674,7 +640,6 @@
                 });
             }
 
-            // 8. Производная приложения
             const appDerivCanvas = document.getElementById('appDerivChart');
             if (appDerivCanvas && data.derivatives) {
                 const appDerivData = derivIndices.map(i => data.derivatives.app[i] || 0);
@@ -730,14 +695,12 @@
             }
         }
 
-        // Обработка ресайза
         window.addEventListener('resize', () => {
             Object.values(detailCharts).forEach(chart => {
                 if (chart) chart.resize();
             });
         });
 
-        // Запуск при загрузке
         document.addEventListener('DOMContentLoaded', loadDetailData);
     </script>
 </body>
