@@ -212,6 +212,8 @@
 
                 // Успешный вход
                 window.location.href = 'collect.html';
+                localStorage.setItem('currentUserEmail', email);
+
             } catch (error) {
                 loginError.textContent = error.message;
             }
@@ -260,6 +262,7 @@
                 }
 
                 registerSuccess.textContent = 'Регистрация успешна! Перенаправляем...';
+                localStorage.setItem('currentUserEmail', email);
                 
                 // Автоматический вход после регистрации
                 setTimeout(() => {
