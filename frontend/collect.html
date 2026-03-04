@@ -209,13 +209,25 @@
         async function checkAuth() {
             const { data: { session }, error } = await supabase.auth.getSession();
             if (error || !session) {
-                // Не авторизован – редирект на login
                 window.location.href = 'login.html';
                 return;
             }
             userId = session.user.id;
-            userEmailSpan.textContent = session.user.email;
+            
+            // Получаем username из profiles
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('username')
+                .eq('user_id', userId)
+                .single();
+            
+            const username = profile?.username || session.user.email;
+            userEmailSpan.textContent = username;
+            
+            // Сохраняем для других страниц
+            localStorage.setItem('currentUsername', username);
             localStorage.setItem('currentUserEmail', session.user.email);
+            
             await loadUserProgress();
         }
 
