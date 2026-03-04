@@ -14,8 +14,8 @@
             <h1>🚗 АТОМ Metrics</h1>
             <p>Анализ открытий дверей по тачпоинтам</p>
             
-            <div style="margin-top: 20px; display: flex; gap: 20px; align-items: center;">
-                <div style="display: flex; gap: 10px; background: var(--bg-color); padding: 10px; border-radius: 8px;">
+            <div style="margin-top: 20px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+                <div style="display: flex; gap: 10px; background: var(--bg-color); padding: 10px; border-radius: 8px; flex-wrap: wrap;">
                     <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
                         <input type="radio" name="dataSource" value="synthetic"> 
                         📊 Синтетические данные
@@ -24,7 +24,23 @@
                         <input type="radio" name="dataSource" value="team"> 
                         👥 Данные команды
                     </label>
+                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                        <input type="radio" name="dataSource" value="user"> 
+                        👤 Данные пользователя
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                        <input type="radio" name="dataSource" value="stats"> 
+                        📊 Статистика команды
+                    </label>
                 </div>
+                
+                <!-- Блок выбора пользователя (изначально скрыт) -->
+                <div id="userSelector" style="display: none; background: var(--bg-color); padding: 10px; border-radius: 8px;">
+                    <select id="userSelect" style="padding: 8px; border-radius: 5px; border: 1px solid #ddd; min-width: 200px;">
+                        <option value="">Загрузка пользователей...</option>
+                    </select>
+                </div>
+                
                 <a href="login.html" style="text-decoration: none;">
                     <button style="background: var(--primary-color); color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;">
                         📝 Сбор данных команды
@@ -39,6 +55,14 @@
         </nav>
 
         <div id="loading" class="loading">Загрузка данных...</div>
+
+        <!-- Контейнер для статистики команды (круговая диаграмма) -->
+        <div id="teamStatsContainer" style="display: none; margin-bottom: 20px;">
+            <div class="chart-card">
+                <h3>📊 Дни сбора по пользователям</h3>
+                <canvas id="teamStatsChart" style="max-height: 400px;"></canvas>
+            </div>
+        </div>
 
         <div class="stats-cards" id="statsCards" style="display: none;"></div>
 
@@ -91,13 +115,19 @@
         const chartsGrid = document.getElementById('chartsGrid');
         const dataTable = document.getElementById('dataTable');
         const errorEl = document.getElementById('error');
+        const teamStatsContainer = document.getElementById('teamStatsContainer');
         const radioButtons = document.querySelectorAll('input[name="dataSource"]');
         const dashboardLink = document.getElementById('dashboardLink');
+        const userSelector = document.getElementById('userSelector');
+        const userSelect = document.getElementById('userSelect');
 
         let currentData = null;
+        let currentUserId = null;
+        let teamStatsChart = null;
 
         // Загружаем сохраненный источник из localStorage
         const savedSource = localStorage.getItem('dataSource') || 'synthetic';
+        const savedUserId = localStorage.getItem('selectedUserId');
         
         // Устанавливаем сохраненное значение для радио-кнопок
         radioButtons.forEach(radio => {
@@ -105,6 +135,13 @@
                 radio.checked = true;
             }
         });
+
+        // Показываем/скрываем выбор пользователя в зависимости от выбранного источника
+        function toggleUserSelector() {
+            const source = document.querySelector('input[name="dataSource"]:checked').value;
+            userSelector.style.display = source === 'user' ? 'block' : 'none';
+            teamStatsContainer.style.display = source === 'stats' ? 'block' : 'none';
+        }
 
         // Функция для вычисления производных (шаг 5)
         function calculateDerivatives(values) {
@@ -139,6 +176,205 @@
             }
             
             return result;
+        }
+
+        // Функция для получения списка пользователей
+        async function loadUsers() {
+            try {
+                const { data: profiles, error } = await supabase
+                    .from('profiles')
+                    .select('user_id, email')
+                    .order('email');
+
+                if (error) throw error;
+                
+                userSelect.innerHTML = '<option value="">Выберите пользователя...</option>';
+                
+                profiles.forEach(profile => {
+                    const option = document.createElement('option');
+                    option.value = profile.user_id;
+                    option.textContent = profile.email;
+                    if (profile.user_id === savedUserId) {
+                        option.selected = true;
+                        currentUserId = profile.user_id;
+                    }
+                    userSelect.appendChild(option);
+                });
+
+                // Если есть сохраненный пользователь и выбран источник "user", загружаем данные
+                if (savedUserId && document.querySelector('input[name="dataSource"]:checked').value === 'user') {
+                    const data = await loadUserData(savedUserId);
+                    if (data) {
+                        currentData = data;
+                        updateStatsCards(data);
+                        createAllCharts(data);
+                        updateTable(data);
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки пользователей:', error);
+            }
+        }
+
+        // Функция для получения данных конкретного пользователя
+        async function loadUserData(userId) {
+            try {
+                const { data: sessions, error } = await supabase
+                    .from('sessions')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .order('date', { ascending: true });
+
+                if (error) throw error;
+                if (!sessions || sessions.length === 0) {
+                    throw new Error('Нет данных у пользователя');
+                }
+
+                const dailyMap = new Map();
+                sessions.forEach(session => {
+                    const date = session.date;
+                    if (!dailyMap.has(date)) {
+                        dailyMap.set(date, { button: 0, svp: 0, va: 0, app: 0 });
+                    }
+                    const day = dailyMap.get(date);
+                    day.button += session.button;
+                    day.svp += session.svp;
+                    day.va += session.va;
+                    day.app += session.app;
+                });
+
+                const daily = Array.from(dailyMap.entries())
+                    .map(([date, counts]) => ({
+                        date,
+                        ...counts,
+                        total: counts.button + counts.svp + counts.va + counts.app
+                    }))
+                    .sort((a, b) => a.date.localeCompare(b.date));
+
+                const totalOpens = daily.reduce((sum, d) => sum + d.total, 0);
+
+                const derivatives = {
+                    button: calculateDerivatives(daily.map(d => d.button)),
+                    svp: calculateDerivatives(daily.map(d => d.svp)),
+                    va: calculateDerivatives(daily.map(d => d.va)),
+                    app: calculateDerivatives(daily.map(d => d.app))
+                };
+
+                return {
+                    daily,
+                    summary: {
+                        total_opens: totalOpens,
+                        avg_daily: totalOpens / daily.length,
+                        max_daily: Math.max(...daily.map(d => d.total)),
+                        min_daily: Math.min(...daily.map(d => d.total)),
+                        days: daily.length,
+                        cars: 1
+                    },
+                    by_touchpoint: {
+                        button: { total: daily.reduce((sum, d) => sum + d.button, 0), name: 'Кнопка' },
+                        svp: { total: daily.reduce((sum, d) => sum + d.svp, 0), name: 'СВП' },
+                        va: { total: daily.reduce((sum, d) => sum + d.va, 0), name: 'VA' },
+                        app: { total: daily.reduce((sum, d) => sum + d.app, 0), name: 'Приложение' }
+                    },
+                    derivatives: derivatives
+                };
+            } catch (error) {
+                throw new Error('Ошибка загрузки данных пользователя: ' + error.message);
+            }
+        }
+
+        // Функция для загрузки статистики команды
+        async function loadTeamStats() {
+            try {
+                const { data: sessions, error } = await supabase
+                    .from('sessions')
+                    .select('user_id, date');
+
+                if (error) throw error;
+                if (!sessions || sessions.length === 0) {
+                    throw new Error('Нет данных команды');
+                }
+
+                // Подсчитываем количество дней для каждого пользователя
+                const userDaysMap = new Map();
+                sessions.forEach(session => {
+                    const userId = session.user_id;
+                    if (!userDaysMap.has(userId)) {
+                        userDaysMap.set(userId, new Set());
+                    }
+                    userDaysMap.get(userId).add(session.date);
+                });
+
+                // Получаем email пользователей
+                const { data: profiles } = await supabase
+                    .from('profiles')
+                    .select('user_id, email');
+
+                const emailMap = new Map();
+                profiles?.forEach(p => emailMap.set(p.user_id, p.email));
+
+                // Формируем данные для круговой диаграммы
+                const labels = [];
+                const data = [];
+                
+                userDaysMap.forEach((days, userId) => {
+                    const email = emailMap.get(userId) || `Пользователь ${userId.slice(0, 8)}`;
+                    labels.push(email);
+                    data.push(days.size);
+                });
+
+                return { labels, data };
+            } catch (error) {
+                throw new Error('Ошибка загрузки статистики: ' + error.message);
+            }
+        }
+
+        // Функция для отображения статистики команды
+        async function displayTeamStats() {
+            try {
+                const stats = await loadTeamStats();
+                
+                if (teamStatsChart) {
+                    teamStatsChart.destroy();
+                }
+
+                const ctx = document.getElementById('teamStatsChart').getContext('2d');
+                teamStatsChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: stats.labels,
+                        datasets: [{
+                            data: stats.data,
+                            backgroundColor: [
+                                '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', 
+                                '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Количество дней сбора по пользователям'
+                            }
+                        }
+                    }
+                });
+
+                loadingEl.style.display = 'none';
+                teamStatsContainer.style.display = 'block';
+                statsCards.style.display = 'none';
+                chartsGrid.style.display = 'none';
+                dataTable.style.display = 'none';
+                
+            } catch (error) {
+                throw error;
+            }
         }
 
         async function loadSyntheticData() {
@@ -182,7 +418,6 @@
 
                 const totalOpens = daily.reduce((sum, d) => sum + d.total, 0);
 
-                // Вычисляем производные
                 const derivatives = {
                     button: calculateDerivatives(daily.map(d => d.button)),
                     svp: calculateDerivatives(daily.map(d => d.svp)),
@@ -190,7 +425,6 @@
                     app: calculateDerivatives(daily.map(d => d.app))
                 };
 
-                // Вычисляем количество уникальных пользователей
                 const uniqueUsers = new Set(sessions.map(s => s.user_id)).size;
 
                 return {
@@ -226,31 +460,52 @@
             
             localStorage.setItem('dataSource', source);
             updateDashboardLink();
+            toggleUserSelector();
             
             loadingEl.style.display = 'block';
             statsCards.style.display = 'none';
             chartsGrid.style.display = 'none';
             dataTable.style.display = 'none';
+            teamStatsContainer.style.display = 'none';
             errorEl.style.display = 'none';
 
             try {
                 let data;
+                
                 if (source === 'synthetic') {
                     data = await loadSyntheticData();
-                } else {
+                    currentData = data;
+                    updateStatsCards(data);
+                    createAllCharts(data);
+                    updateTable(data);
+                    statsCards.style.display = 'grid';
+                    chartsGrid.style.display = 'grid';
+                    dataTable.style.display = 'block';
+                } else if (source === 'team') {
                     data = await loadTeamData();
+                    currentData = data;
+                    updateStatsCards(data);
+                    createAllCharts(data);
+                    updateTable(data);
+                    statsCards.style.display = 'grid';
+                    chartsGrid.style.display = 'grid';
+                    dataTable.style.display = 'block';
+                } else if (source === 'user') {
+                    if (currentUserId) {
+                        data = await loadUserData(currentUserId);
+                        currentData = data;
+                        updateStatsCards(data);
+                        createAllCharts(data);
+                        updateTable(data);
+                        statsCards.style.display = 'grid';
+                        chartsGrid.style.display = 'grid';
+                        dataTable.style.display = 'block';
+                    }
+                } else if (source === 'stats') {
+                    await displayTeamStats();
                 }
-
-                currentData = data;
-                
-                updateStatsCards(data);
-                createAllCharts(data);
-                updateTable(data);
                 
                 loadingEl.style.display = 'none';
-                statsCards.style.display = 'grid';
-                chartsGrid.style.display = 'grid';
-                dataTable.style.display = 'block';
                 
             } catch (error) {
                 loadingEl.style.display = 'none';
@@ -259,18 +514,42 @@
             }
         }
 
+        // Обработчик выбора пользователя
+        userSelect.addEventListener('change', async (e) => {
+            const userId = e.target.value;
+            if (!userId) return;
+            
+            currentUserId = userId;
+            localStorage.setItem('selectedUserId', userId);
+            
+            // Если текущий источник - "user", перезагружаем данные
+            if (document.querySelector('input[name="dataSource"]:checked').value === 'user') {
+                await switchDataSource();
+            }
+        });
+
         radioButtons.forEach(radio => {
             radio.addEventListener('change', switchDataSource);
         });
 
+        // Инициализация
+        toggleUserSelector();
         updateDashboardLink();
-        switchDataSource();
+        
+        // Загружаем список пользователей
+        loadUsers().then(() => {
+            // Загружаем данные с сохраненным источником
+            switchDataSource();
+        });
 
         window.addEventListener('resize', () => {
             if (window.chartInstances) {
                 Object.values(window.chartInstances).forEach(chart => {
                     if (chart) chart.resize();
                 });
+            }
+            if (teamStatsChart) {
+                teamStatsChart.resize();
             }
         });
     </script>
