@@ -1,9 +1,20 @@
 // Глобальные переменные для хранения графиков
+// frontend/script.js
+// Глобальные переменные для хранения графиков
 let chartInstances = {};
 
-window.createAllCharts = createAllCharts;
-window.updateStatsCards = updateStatsCards;
-window.updateTable = updateTable;
+// ЭКСПОРТ функций
+export function createAllCharts(data) {
+    // ... весь существующий код функции ...
+}
+
+export function updateStatsCards(data) {
+    // ... весь существующий код функции ...
+}
+
+export function updateTable(data) {
+    // ... весь существующий код функции ...
+}
 
 // Функция загрузки данных
 async function loadData() {
