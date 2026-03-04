@@ -112,7 +112,6 @@
             
             const result = new Array(values.length).fill(0);
             
-            // Создаем массив индексов для отображения (каждый 5-й день)
             const indices = [];
             for (let i = 0; i < values.length; i += 5) {
                 indices.push(i);
@@ -121,21 +120,17 @@
                 indices.push(values.length - 1);
             }
             
-            // Вычисляем производные только на выбранных точках
             for (let i = 0; i < indices.length - 1; i++) {
                 const idx1 = indices[i];
                 const idx2 = indices[i + 1];
                 
-                // Производная = (y2 - y1) / (x2 - x1) / cars (cars=1 для данных команды)
                 const deriv = (values[idx2] - values[idx1]) / (idx2 - idx1);
                 
-                // Заполняем все точки между idx1 и idx2 этим значением
                 for (let j = idx1; j < idx2; j++) {
                     result[j] = deriv;
                 }
             }
             
-            // Заполняем последний отрезок
             if (indices.length >= 2) {
                 const lastDeriv = result[indices[indices.length - 2]];
                 for (let j = indices[indices.length - 2]; j < values.length; j++) {
@@ -164,7 +159,6 @@
                     throw new Error('Нет данных команды');
                 }
 
-                // Агрегация по дням
                 const dailyMap = new Map();
                 sessions.forEach(session => {
                     const date = session.date;
@@ -187,7 +181,7 @@
                     .sort((a, b) => a.date.localeCompare(b.date));
 
                 const totalOpens = daily.reduce((sum, d) => sum + d.total, 0);
-  
+
                 // Вычисляем производные
                 const derivatives = {
                     button: calculateDerivatives(daily.map(d => d.button)),
@@ -195,10 +189,10 @@
                     va: calculateDerivatives(daily.map(d => d.va)),
                     app: calculateDerivatives(daily.map(d => d.app))
                 };
-                
+
                 // Вычисляем количество уникальных пользователей
                 const uniqueUsers = new Set(sessions.map(s => s.user_id)).size;
-                
+
                 return {
                     daily,
                     summary: {
@@ -222,7 +216,6 @@
             }
         }
 
-        // Обновление ссылки на детальный дашборд
         function updateDashboardLink() {
             const source = document.querySelector('input[name="dataSource"]:checked').value;
             dashboardLink.href = `dashboard.html?source=${source}`;
@@ -231,10 +224,7 @@
         async function switchDataSource() {
             const source = document.querySelector('input[name="dataSource"]:checked').value;
             
-            // Сохраняем выбор в localStorage
             localStorage.setItem('dataSource', source);
-            
-            // Обновляем ссылку
             updateDashboardLink();
             
             loadingEl.style.display = 'block';
@@ -269,15 +259,11 @@
             }
         }
 
-        // Добавляем обработчики на радио-кнопки
         radioButtons.forEach(radio => {
             radio.addEventListener('change', switchDataSource);
         });
 
-        // Обновляем ссылку при загрузке
         updateDashboardLink();
-        
-        // Загружаем данные с сохраненным источником
         switchDataSource();
 
         window.addEventListener('resize', () => {
