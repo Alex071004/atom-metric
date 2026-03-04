@@ -188,6 +188,20 @@
 
                 const totalOpens = daily.reduce((sum, d) => sum + d.total, 0);
 
+                // Вычисляем количество уникальных пользователей
+                const uniqueUsers = new Set(sessions.map(s => s.user_id)).size;
+                
+                return {
+                    daily,
+                    summary: {
+                        total_opens: totalOpens,
+                        avg_daily: totalOpens / daily.length,
+                        max_daily: Math.max(...daily.map(d => d.total)),
+                        min_daily: Math.min(...daily.map(d => d.total)),
+                        days: daily.length,
+                        cars: uniqueUsers  // <- вместо 1 ставим реальное количество пользователей
+                    },
+                    
                 // Вычисляем производные
                 const derivatives = {
                     button: calculateDerivatives(daily.map(d => d.button)),
