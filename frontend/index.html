@@ -289,8 +289,10 @@
         }
 
         // Функция для загрузки статистики команды
-        async function loadTeamStats() {
+       async function loadTeamStats() {
             try {
+                console.log('Загрузка статистики команды...');
+                
                 const { data: sessions, error } = await supabase
                     .from('sessions')
                     .select('user_id, date');
@@ -311,9 +313,15 @@
                 });
         
                 // Получаем пользователей с именами из profiles
-                const { data: profiles } = await supabase
+                const { data: profiles, error: profilesError } = await supabase
                     .from('profiles')
                     .select('user_id, email, username');
+        
+                if (profilesError) {
+                    console.error('Ошибка загрузки profiles:', profilesError);
+                }
+        
+                console.log('Загруженные profiles:', profiles); // Отладка
         
                 const userMap = new Map();
                 profiles?.forEach(p => {
@@ -332,24 +340,32 @@
                     '#bcbd22', '#17becf', '#f7b6d2', '#c49c94'
                 ];
                 
-                let colorIndex = 0;
-                
                 // Сортируем пользователей по количеству дней (от большего к меньшему)
                 const sortedUsers = Array.from(userDaysMap.entries())
                     .sort((a, b) => b[1].size - a[1].size);
                 
                 sortedUsers.forEach(([userId, days]) => {
                     const userInfo = userMap.get(userId) || { 
-                        username: 'Неизвестный', 
-                        email: 'Нет email' 
+                        username: null, 
+                        email: 'unknown@email.com' 
                     };
                     
-                    // Используем username, если есть, иначе email
-                    const displayName = userInfo.username || userInfo.email.split('@')[0];
+                    console.log(`Пользователь ${userId}:`, userInfo); // Отладдатка
+                    
+                    // ВАЖНО: используем username если он есть, иначе часть email
+                    let displayName;
+                    if (userInfo.username && userInfo.username.trim() !== '') {
+                        displayName = userInfo.username;
+                    } else {
+                        // Берем часть email до @
+                        displayName = userInfo.email.split('@')[0];
+                    }
+                    
                     labels.push(`${displayName} (${days.size} дн.)`);
                     data.push(days.size);
-                    colorIndex++;
                 });
+        
+                console.log('Итоговые labels:', labels); // Отладка
         
                 return { 
                     labels, 
@@ -357,6 +373,7 @@
                     colors: colors.slice(0, labels.length)
                 };
             } catch (error) {
+                console.error('Ошибка в loadTeamStats:', error);
                 throw new Error('Ошибка загрузки статистики: ' + error.message);
             }
         }
@@ -373,7 +390,7 @@
                 teamStatsChart = new Chart(ctx, {
                     type: 'pie',
                     data: {
-                        labels: stats.labels,
+                        labels: stats.labels,  // Здесь должны быть имена, а не email
                         datasets: [{
                             data: stats.data,
                             backgroundColor: stats.colors
@@ -386,19 +403,8 @@
                             legend: {
                                 position: 'bottom',
                                 labels: {
-                                    generateLabels: function(chart) {
-                                        const data = chart.data;
-                                        if (data.labels.length && data.datasets.length) {
-                                            return data.labels.map((label, i) => ({
-                                                text: label,
-                                                fillStyle: data.datasets[0].backgroundColor[i],
-                                                strokeStyle: 'rgba(0,0,0,0.1)',
-                                                lineWidth: 1,
-                                                hidden: false,
-                                                index: i
-                                            }));
-                                        }
-                                        return [];
+                                    font: {
+                                        size: 12
                                     }
                                 }
                             },
@@ -431,6 +437,7 @@
                 dataTable.style.display = 'none';
                 
             } catch (error) {
+                console.error('Ошибка в displayTeamStats:', error);
                 throw error;
             }
         }
