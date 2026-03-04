@@ -3,92 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>АТОМ Metrics - Анализ открытий дверей</title>
-    
+    <title>АТОМ Metrics - Главная</title>
+    <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
-
-    <!-- Подключение основного скрипта -->
-    <script src="script.js"></script>
-    
-    <!-- Подключение стилей (из той же папки) -->
-    <link rel="stylesheet" href="styles.css">
-    
-    <!-- Подключение Chart.js для графиков -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Подключение Moment.js для работы с датами (опционально) -->
-    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
-    
-    <style>
-        /* Временные стили на случай, если styles.css не загрузится */
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-            margin: 0; 
-            padding: 20px; 
-            background: #f5f5f5; 
-        }
-        .loading {
-            text-align: center;
-            padding: 50px;
-            font-size: 1.2em;
-            color: #666;
-        }
-    </style>
 </head>
 <body>
     <div class="app">
-        <!-- Шапка -->
         <header>
             <h1>🚗 АТОМ Metrics</h1>
             <p>Анализ открытий дверей по тачпоинтам</p>
+            
+            <!-- НОВЫЙ БЛОК: переключатель источников данных -->
+            <div style="margin-top: 20px; display: flex; gap: 20px; align-items: center;">
+                <div style="display: flex; gap: 10px; background: var(--bg-color); padding: 10px; border-radius: 8px;">
+                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                        <input type="radio" name="dataSource" value="synthetic" checked> 
+                        📊 Синтетические данные
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                        <input type="radio" name="dataSource" value="team"> 
+                        👥 Данные команды
+                    </label>
+                </div>
+                <a href="login.html" style="text-decoration: none;">
+                    <button style="background: var(--primary-color); color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;">
+                        📝 Сбор данных команды
+                    </button>
+                </a>
+            </div>
         </header>
 
-        <!-- Навигация -->
         <nav>
             <a href="index.html" class="active">Главная</a>
             <a href="dashboard.html">Детальный дашборд</a>
         </nav>
 
-        <!-- Индикатор загрузки -->
-        <div id="loading" class="loading">
-            Загрузка данных...
-        </div>
+        <div id="loading" class="loading">Загрузка данных...</div>
 
-        <!-- Блок со статистикой (заполняется через JavaScript) -->
-        <div class="stats-cards" id="statsCards" style="display: none;">
-            <!-- Карточки будут добавлены динамически -->
-        </div>
+        <div class="stats-cards" id="statsCards" style="display: none;"></div>
 
-        <!-- Сетка графиков -->
         <div class="charts-grid" id="chartsGrid" style="display: none;">
-            <!-- График всех тачпоинтов -->
             <div class="chart-card">
-                <h3>📈 Все тачпоинты</h3>
+                <h3>Все тачпоинты</h3>
                 <canvas id="allTouchpointsChart"></canvas>
             </div>
-            
-            <!-- Круговая диаграмма -->
             <div class="chart-card">
-                <h3>🥧 Распределение</h3>
+                <h3>Распределение</h3>
                 <canvas id="pieChart"></canvas>
             </div>
-            
-            <!-- Суммарные открытия -->
             <div class="chart-card">
-                <h3>📊 Суммарные открытия</h3>
+                <h3>Суммарные открытия</h3>
                 <canvas id="totalChart"></canvas>
             </div>
-            
-            <!-- Производные -->
             <div class="chart-card">
-                <h3>📉 Производные (на 1 машину)</h3>
+                <h3>Производные</h3>
                 <canvas id="derivativesChart"></canvas>
             </div>
         </div>
 
-        <!-- Блок с последними данными -->
         <div class="data-table" id="dataTable" style="display: none;">
-            <h3>📋 Последние 10 дней</h3>
+            <h3>Последние 10 дней</h3>
             <table>
                 <thead>
                     <tr>
@@ -100,19 +75,178 @@
                         <th>Всего</th>
                     </tr>
                 </thead>
-                <tbody id="tableBody">
-                    <!-- Данные будут добавлены динамически -->
-                </tbody>
+                <tbody id="tableBody"></tbody>
             </table>
         </div>
 
-        <!-- Блок с ошибкой (если данные не загрузятся) -->
-        <div id="error" class="error" style="display: none; color: red; text-align: center; padding: 20px;">
-            Ошибка загрузки данных
-        </div>
+        <div id="error" class="error" style="display: none;"></div>
     </div>
 
-    <!-- Подключение основного скрипта -->
+    <script type="module">
+        // Импортируем Supabase только для данных команды
+        import { supabase } from './supabase/supabase-config.js';
+        import { createAllCharts, updateStatsCards, updateTable } from './script.js';
+
+        // Элементы DOM
+        const loadingEl = document.getElementById('loading');
+        const statsCards = document.getElementById('statsCards');
+        const chartsGrid = document.getElementById('chartsGrid');
+        const dataTable = document.getElementById('dataTable');
+        const errorEl = document.getElementById('error');
+        const radioButtons = document.querySelectorAll('input[name="dataSource"]');
+
+        // Текущие данные
+        let currentData = null;
+
+        // Загрузка синтетических данных
+        async function loadSyntheticData() {
+            try {
+                const response = await fetch('data.json');
+                if (!response.ok) throw new Error('Ошибка загрузки синтетических данных');
+                return await response.json();
+            } catch (error) {
+                throw new Error('Не удалось загрузить синтетические данные');
+            }
+        }
+
+        // Загрузка данных команды из Supabase
+        async function loadTeamData() {
+            try {
+                // Получаем все сессии
+                const { data: sessions, error } = await supabase
+                    .from('sessions')
+                    .select('*')
+                    .order('date', { ascending: true });
+
+                if (error) throw error;
+
+                if (!sessions || sessions.length === 0) {
+                    throw new Error('Нет данных команды');
+                }
+
+                // Агрегируем по дням
+                const dailyMap = new Map();
+                
+                sessions.forEach(session => {
+                    const date = session.date;
+                    if (!dailyMap.has(date)) {
+                        dailyMap.set(date, { button: 0, svp: 0, va: 0, app: 0 });
+                    }
+                    const day = dailyMap.get(date);
+                    day.button += session.button;
+                    day.svp += session.svp;
+                    day.va += session.va;
+                    day.app += session.app;
+                });
+
+                // Преобразуем в массив и сортируем по дате
+                const daily = Array.from(dailyMap.entries())
+                    .map(([date, counts]) => ({
+                        date,
+                        ...counts,
+                        total: counts.button + counts.svp + counts.va + counts.app
+                    }))
+                    .sort((a, b) => a.date.localeCompare(b.date));
+
+                // Вычисляем статистику
+                const totalOpens = daily.reduce((sum, d) => sum + d.total, 0);
+                
+                return {
+                    daily,
+                    summary: {
+                        total_opens: totalOpens,
+                        avg_daily: totalOpens / daily.length,
+                        max_daily: Math.max(...daily.map(d => d.total)),
+                        min_daily: Math.min(...daily.map(d => d.total)),
+                        days: daily.length,
+                        cars: 1
+                    },
+                    by_touchpoint: {
+                        button: {
+                            total: daily.reduce((sum, d) => sum + d.button, 0),
+                            name: 'Кнопка'
+                        },
+                        svp: {
+                            total: daily.reduce((sum, d) => sum + d.svp, 0),
+                            name: 'СВП'
+                        },
+                        va: {
+                            total: daily.reduce((sum, d) => sum + d.va, 0),
+                            name: 'VA'
+                        },
+                        app: {
+                            total: daily.reduce((sum, d) => sum + d.app, 0),
+                            name: 'Приложение'
+                        }
+                    },
+                    // Для производных пока пусто (можно добавить позже)
+                    derivatives: {
+                        button: [],
+                        svp: [],
+                        va: [],
+                        app: []
+                    }
+                };
+            } catch (error) {
+                throw new Error('Ошибка загрузки данных команды: ' + error.message);
+            }
+        }
+
+        // Переключение источника данных
+        async function switchDataSource() {
+            const source = document.querySelector('input[name="dataSource"]:checked').value;
+            
+            loadingEl.style.display = 'block';
+            statsCards.style.display = 'none';
+            chartsGrid.style.display = 'none';
+            dataTable.style.display = 'none';
+            errorEl.style.display = 'none';
+
+            try {
+                let data;
+                if (source === 'synthetic') {
+                    data = await loadSyntheticData();
+                } else {
+                    data = await loadTeamData();
+                }
+
+                currentData = data;
+                
+                // Обновляем интерфейс
+                updateStatsCards(data);
+                createAllCharts(data);
+                updateTable(data);
+                
+                loadingEl.style.display = 'none';
+                statsCards.style.display = 'grid';
+                chartsGrid.style.display = 'grid';
+                dataTable.style.display = 'block';
+                
+            } catch (error) {
+                loadingEl.style.display = 'none';
+                errorEl.style.display = 'block';
+                errorEl.textContent = error.message;
+            }
+        }
+
+        // Слушаем изменение радио-кнопок
+        radioButtons.forEach(radio => {
+            radio.addEventListener('change', switchDataSource);
+        });
+
+        // Загружаем синтетические данные по умолчанию
+        switchDataSource();
+
+        // Обработка ресайза окон
+        window.addEventListener('resize', () => {
+            if (window.chartInstances) {
+                Object.values(window.chartInstances).forEach(chart => {
+                    if (chart) chart.resize();
+                });
+            }
+        });
+    </script>
+    <!-- Подключаем script.js для функций отрисовки -->
     <script src="script.js"></script>
 </body>
 </html>
