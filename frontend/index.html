@@ -17,7 +17,7 @@
             <div style="margin-top: 20px; display: flex; gap: 20px; align-items: center;">
                 <div style="display: flex; gap: 10px; background: var(--bg-color); padding: 10px; border-radius: 8px;">
                     <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
-                        <input type="radio" name="dataSource" value="synthetic" checked> 
+                        <input type="radio" name="dataSource" value="synthetic"> 
                         📊 Синтетические данные
                     </label>
                     <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
@@ -85,6 +85,7 @@
         import { supabase } from './supabase/supabase-config.js';
         import { createAllCharts, updateStatsCards, updateTable } from './script.js';
 
+        // Элементы DOM
         const loadingEl = document.getElementById('loading');
         const statsCards = document.getElementById('statsCards');
         const chartsGrid = document.getElementById('chartsGrid');
@@ -94,6 +95,16 @@
         const dashboardLink = document.getElementById('dashboardLink');
 
         let currentData = null;
+
+        // Загружаем сохраненный источник из localStorage
+        const savedSource = localStorage.getItem('dataSource') || 'synthetic';
+        
+        // Устанавливаем сохраненное значение для радио-кнопок
+        radioButtons.forEach(radio => {
+            if (radio.value === savedSource) {
+                radio.checked = true;
+            }
+        });
 
         // Функция для вычисления производных (шаг 5)
         function calculateDerivatives(values) {
@@ -217,6 +228,9 @@
         async function switchDataSource() {
             const source = document.querySelector('input[name="dataSource"]:checked').value;
             
+            // Сохраняем выбор в localStorage
+            localStorage.setItem('dataSource', source);
+            
             // Обновляем ссылку
             updateDashboardLink();
             
@@ -252,12 +266,15 @@
             }
         }
 
+        // Добавляем обработчики на радио-кнопки
         radioButtons.forEach(radio => {
             radio.addEventListener('change', switchDataSource);
         });
 
-        // Загружаем синтетические данные по умолчанию и устанавливаем ссылку
+        // Обновляем ссылку при загрузке
         updateDashboardLink();
+        
+        // Загружаем данные с сохраненным источником
         switchDataSource();
 
         window.addEventListener('resize', () => {
