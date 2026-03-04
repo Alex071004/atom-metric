@@ -1,6 +1,10 @@
 // Глобальные переменные для хранения графиков
 let chartInstances = {};
 
+window.createAllCharts = createAllCharts;
+window.updateStatsCards = updateStatsCards;
+window.updateTable = updateTable;
+
 // Функция загрузки данных
 async function loadData() {
     try {
