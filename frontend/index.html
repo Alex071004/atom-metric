@@ -14,7 +14,6 @@
             <h1>🚗 АТОМ Metrics</h1>
             <p>Анализ открытий дверей по тачпоинтам</p>
             
-            <!-- НОВЫЙ БЛОК: переключатель источников данных -->
             <div style="margin-top: 20px; display: flex; gap: 20px; align-items: center;">
                 <div style="display: flex; gap: 10px; background: var(--bg-color); padding: 10px; border-radius: 8px;">
                     <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
@@ -83,11 +82,9 @@
     </div>
 
     <script type="module">
-        // Импортируем Supabase только для данных команды
         import { supabase } from './supabase/supabase-config.js';
         import { createAllCharts, updateStatsCards, updateTable } from './script.js';
 
-        // Элементы DOM
         const loadingEl = document.getElementById('loading');
         const statsCards = document.getElementById('statsCards');
         const chartsGrid = document.getElementById('chartsGrid');
@@ -95,38 +92,28 @@
         const errorEl = document.getElementById('error');
         const radioButtons = document.querySelectorAll('input[name="dataSource"]');
 
-        // Текущие данные
         let currentData = null;
 
-        // Загрузка синтетических данных
         async function loadSyntheticData() {
-            try {
-                const response = await fetch('data.json');
-                if (!response.ok) throw new Error('Ошибка загрузки синтетических данных');
-                return await response.json();
-            } catch (error) {
-                throw new Error('Не удалось загрузить синтетические данные');
-            }
+            const response = await fetch('data.json');
+            if (!response.ok) throw new Error('Ошибка загрузки синтетических данных');
+            return await response.json();
         }
 
-        // Загрузка данных команды из Supabase
         async function loadTeamData() {
             try {
-                // Получаем все сессии
                 const { data: sessions, error } = await supabase
                     .from('sessions')
                     .select('*')
                     .order('date', { ascending: true });
 
                 if (error) throw error;
-
                 if (!sessions || sessions.length === 0) {
                     throw new Error('Нет данных команды');
                 }
 
-                // Агрегируем по дням
+                // Агрегация по дням
                 const dailyMap = new Map();
-                
                 sessions.forEach(session => {
                     const date = session.date;
                     if (!dailyMap.has(date)) {
@@ -139,7 +126,6 @@
                     day.app += session.app;
                 });
 
-                // Преобразуем в массив и сортируем по дате
                 const daily = Array.from(dailyMap.entries())
                     .map(([date, counts]) => ({
                         date,
@@ -148,9 +134,8 @@
                     }))
                     .sort((a, b) => a.date.localeCompare(b.date));
 
-                // Вычисляем статистику
                 const totalOpens = daily.reduce((sum, d) => sum + d.total, 0);
-                
+
                 return {
                     daily,
                     summary: {
@@ -162,37 +147,18 @@
                         cars: 1
                     },
                     by_touchpoint: {
-                        button: {
-                            total: daily.reduce((sum, d) => sum + d.button, 0),
-                            name: 'Кнопка'
-                        },
-                        svp: {
-                            total: daily.reduce((sum, d) => sum + d.svp, 0),
-                            name: 'СВП'
-                        },
-                        va: {
-                            total: daily.reduce((sum, d) => sum + d.va, 0),
-                            name: 'VA'
-                        },
-                        app: {
-                            total: daily.reduce((sum, d) => sum + d.app, 0),
-                            name: 'Приложение'
-                        }
+                        button: { total: daily.reduce((sum, d) => sum + d.button, 0), name: 'Кнопка' },
+                        svp: { total: daily.reduce((sum, d) => sum + d.svp, 0), name: 'СВП' },
+                        va: { total: daily.reduce((sum, d) => sum + d.va, 0), name: 'VA' },
+                        app: { total: daily.reduce((sum, d) => sum + d.app, 0), name: 'Приложение' }
                     },
-                    // Для производных пока пусто (можно добавить позже)
-                    derivatives: {
-                        button: [],
-                        svp: [],
-                        va: [],
-                        app: []
-                    }
+                    derivatives: { button: [], svp: [], va: [], app: [] }
                 };
             } catch (error) {
                 throw new Error('Ошибка загрузки данных команды: ' + error.message);
             }
         }
 
-        // Переключение источника данных
         async function switchDataSource() {
             const source = document.querySelector('input[name="dataSource"]:checked').value;
             
@@ -212,7 +178,6 @@
 
                 currentData = data;
                 
-                // Обновляем интерфейс
                 updateStatsCards(data);
                 createAllCharts(data);
                 updateTable(data);
@@ -229,7 +194,6 @@
             }
         }
 
-        // Слушаем изменение радио-кнопок
         radioButtons.forEach(radio => {
             radio.addEventListener('change', switchDataSource);
         });
@@ -237,7 +201,6 @@
         // Загружаем синтетические данные по умолчанию
         switchDataSource();
 
-        // Обработка ресайза окон
         window.addEventListener('resize', () => {
             if (window.chartInstances) {
                 Object.values(window.chartInstances).forEach(chart => {
@@ -246,7 +209,5 @@
             }
         });
     </script>
-    <!-- Подключаем script.js для функций отрисовки -->
-    <script src="script.js"></script>
 </body>
 </html>
