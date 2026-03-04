@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>АТОМ Metrics – Вход</title>
+    <title>АТОМ Metrics – Вход / Регистрация</title>
     <link rel="stylesheet" href="styles.css">
     <style>
         .auth-container {
@@ -166,6 +166,8 @@
         const loginPassword = document.getElementById('loginPassword');
         const registerEmail = document.getElementById('registerEmail');
         const registerPassword = document.getElementById('registerPassword');
+        const rememberMe = document.getElementById('rememberMe');
+        const registerRemember = document.getElementById('registerRemember');
 
         // Переключение вкладок
         loginTab.addEventListener('click', () => {
@@ -182,10 +184,18 @@
             loginForm.classList.remove('active');
         });
 
+        // Функция для установки persistence
+        function setPersistence(remember) {
+            return remember 
+                ? supabase.auth.setSession({ /* localStorage по умолчанию */ })
+                : supabase.auth.setSession({ /* session storage */ });
+        }
+
         // Вход
         loginBtn.addEventListener('click', async () => {
             const email = loginEmail.value.trim();
             const password = loginPassword.value.trim();
+            const remember = rememberMe.checked;
 
             if (!email || !password) {
                 loginError.textContent = 'Заполните все поля';
@@ -199,6 +209,8 @@
                 });
 
                 if (error) throw error;
+
+                // Успешный вход
                 window.location.href = 'collect.html';
             } catch (error) {
                 loginError.textContent = error.message;
@@ -209,6 +221,7 @@
         registerBtn.addEventListener('click', async () => {
             const email = registerEmail.value.trim();
             const password = registerPassword.value.trim();
+            const remember = registerRemember.checked;
 
             if (!email || !password) {
                 registerError.textContent = 'Заполните все поля';
@@ -224,24 +237,48 @@
                 if (error) throw error;
 
                 if (data.user) {
-                    // Создаём запись в user_progress
-                    const { error: insertError } = await supabase
+                    // 1. Создаем запись в user_progress
+                    const { error: progressError } = await supabase
                         .from('user_progress')
                         .insert({ user_id: data.user.id, current_day: 1 });
 
-                    if (insertError) {
-                        console.error('Ошибка создания прогресса:', insertError);
+                    if (progressError) {
+                        console.error('Ошибка создания прогресса:', progressError);
+                    }
+
+                    // 2. СОЗДАЕМ ЗАПИСЬ В PROFILES (новая таблица)
+                    const { error: profileError } = await supabase
+                        .from('profiles')
+                        .insert({ 
+                            user_id: data.user.id, 
+                            email: email 
+                        });
+
+                    if (profileError) {
+                        console.error('Ошибка создания профиля:', profileError);
                     }
                 }
 
                 registerSuccess.textContent = 'Регистрация успешна! Перенаправляем...';
+                
+                // Автоматический вход после регистрации
                 setTimeout(() => {
                     window.location.href = 'collect.html';
                 }, 1500);
+                
             } catch (error) {
                 registerError.textContent = error.message;
             }
         });
+
+        // Проверка сессии при загрузке
+        (async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                // Если уже есть сессия, сразу переходим на collect.html
+                window.location.href = 'collect.html';
+            }
+        })();
     </script>
 </body>
 </html>
