@@ -132,7 +132,7 @@
 
         // Получаем параметр source из URL
         const urlParams = new URLSearchParams(window.location.search);
-        const dataSource = urlParams.get('source') || 'synthetic';
+        const dataSource = urlParams.get('source') || localStorage.getItem('dataSource') || 'synthetic';
         
         // Отображаем источник данных
         const sourceInfo = document.getElementById('sourceInfo');
@@ -271,6 +271,8 @@
                 detailContent.style.display = 'block';
                 
                 createDetailCharts(data);
+                // Сохраняем источник при успешной загрузке
+                localStorage.setItem('dataSource', dataSource);
                 
             } catch (error) {
                 console.error('Ошибка:', error);
