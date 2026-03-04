@@ -35,7 +35,7 @@
 
         <nav>
             <a href="index.html" class="active">Главная</a>
-            <a href="dashboard.html">Детальный дашборд</a>
+            <a href="dashboard.html" id="dashboardLink">Детальный дашборд</a>
         </nav>
 
         <div id="loading" class="loading">Загрузка данных...</div>
@@ -91,8 +91,49 @@
         const dataTable = document.getElementById('dataTable');
         const errorEl = document.getElementById('error');
         const radioButtons = document.querySelectorAll('input[name="dataSource"]');
+        const dashboardLink = document.getElementById('dashboardLink');
 
         let currentData = null;
+
+        // Функция для вычисления производных (шаг 5)
+        function calculateDerivatives(values) {
+            if (values.length < 2) return values.map(() => 0);
+            
+            const result = new Array(values.length).fill(0);
+            
+            // Создаем массив индексов для отображения (каждый 5-й день)
+            const indices = [];
+            for (let i = 0; i < values.length; i += 5) {
+                indices.push(i);
+            }
+            if (indices[indices.length - 1] !== values.length - 1) {
+                indices.push(values.length - 1);
+            }
+            
+            // Вычисляем производные только на выбранных точках
+            for (let i = 0; i < indices.length - 1; i++) {
+                const idx1 = indices[i];
+                const idx2 = indices[i + 1];
+                
+                // Производная = (y2 - y1) / (x2 - x1) / cars (cars=1 для данных команды)
+                const deriv = (values[idx2] - values[idx1]) / (idx2 - idx1);
+                
+                // Заполняем все точки между idx1 и idx2 этим значением
+                for (let j = idx1; j < idx2; j++) {
+                    result[j] = deriv;
+                }
+            }
+            
+            // Заполняем последний отрезок
+            if (indices.length >= 2) {
+                const lastDeriv = result[indices[indices.length - 2]];
+                for (let j = indices[indices.length - 2]; j < values.length; j++) {
+                    result[j] = lastDeriv;
+                }
+            }
+            
+            return result;
+        }
 
         async function loadSyntheticData() {
             const response = await fetch('data.json');
@@ -106,12 +147,12 @@
                     .from('sessions')
                     .select('*')
                     .order('date', { ascending: true });
-        
+
                 if (error) throw error;
                 if (!sessions || sessions.length === 0) {
                     throw new Error('Нет данных команды');
                 }
-        
+
                 // Агрегация по дням
                 const dailyMap = new Map();
                 sessions.forEach(session => {
@@ -125,7 +166,7 @@
                     day.va += session.va;
                     day.app += session.app;
                 });
-        
+
                 const daily = Array.from(dailyMap.entries())
                     .map(([date, counts]) => ({
                         date,
@@ -133,58 +174,17 @@
                         total: counts.button + counts.svp + counts.va + counts.app
                     }))
                     .sort((a, b) => a.date.localeCompare(b.date));
-        
+
                 const totalOpens = daily.reduce((sum, d) => sum + d.total, 0);
-        
-                // ВЫЧИСЛЯЕМ ПРОИЗВОДНЫЕ (как в Python, шаг 5)
-                const cars = 1; // Для данных команды считаем на одну "машину"
-                
-                function calculateDerivatives(values) {
-                    if (values.length < 2) return values.map(() => 0);
-                    
-                    const result = new Array(values.length).fill(0);
-                    
-                    // Создаем массив индексов для отображения (каждый 5-й день)
-                    const indices = [];
-                    for (let i = 0; i < values.length; i += 5) {
-                        indices.push(i);
-                    }
-                    if (indices[indices.length - 1] !== values.length - 1) {
-                        indices.push(values.length - 1);
-                    }
-                    
-                    // Вычисляем производные только на выбранных точках
-                    for (let i = 0; i < indices.length - 1; i++) {
-                        const idx1 = indices[i];
-                        const idx2 = indices[i + 1];
-                        
-                        // Производная = (y2 - y1) / (x2 - x1)
-                        const deriv = (values[idx2] - values[idx1]) / (idx2 - idx1) / cars;
-                        
-                        // Заполняем все точки между idx1 и idx2 этим значением
-                        for (let j = idx1; j < idx2; j++) {
-                            result[j] = deriv;
-                        }
-                    }
-                    
-                    // Заполняем последний отрезок
-                    if (indices.length >= 2) {
-                        const lastDeriv = result[indices[indices.length - 2]];
-                        for (let j = indices[indices.length - 2]; j < values.length; j++) {
-                            result[j] = lastDeriv;
-                        }
-                    }
-                    
-                    return result;
-                }
-        
+
+                // Вычисляем производные
                 const derivatives = {
                     button: calculateDerivatives(daily.map(d => d.button)),
                     svp: calculateDerivatives(daily.map(d => d.svp)),
                     va: calculateDerivatives(daily.map(d => d.va)),
                     app: calculateDerivatives(daily.map(d => d.app))
                 };
-        
+
                 return {
                     daily,
                     summary: {
@@ -208,8 +208,17 @@
             }
         }
 
+        // Обновление ссылки на детальный дашборд
+        function updateDashboardLink() {
+            const source = document.querySelector('input[name="dataSource"]:checked').value;
+            dashboardLink.href = `dashboard.html?source=${source}`;
+        }
+
         async function switchDataSource() {
             const source = document.querySelector('input[name="dataSource"]:checked').value;
+            
+            // Обновляем ссылку
+            updateDashboardLink();
             
             loadingEl.style.display = 'block';
             statsCards.style.display = 'none';
@@ -247,7 +256,8 @@
             radio.addEventListener('change', switchDataSource);
         });
 
-        // Загружаем синтетические данные по умолчанию
+        // Загружаем синтетические данные по умолчанию и устанавливаем ссылку
+        updateDashboardLink();
         switchDataSource();
 
         window.addEventListener('resize', () => {
