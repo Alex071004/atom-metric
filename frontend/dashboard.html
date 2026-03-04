@@ -264,6 +264,10 @@
                         app: calculateDerivatives(daily.map(d => d.app))
                     };
 
+                    const uniqueUsers = new Set(sessions.map(s => s.user_id)).size;
+                    // Эта информация может пригодиться для заголовка
+                    console.log(`Данные от ${uniqueUsers} пользователей`);
+                    
                     data = { daily, derivatives };
                 }
 
