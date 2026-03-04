@@ -127,14 +127,14 @@
         const urlParams = new URLSearchParams(window.location.search);
         const dataSource = urlParams.get('source') || localStorage.getItem('dataSource') || 'synthetic';
         const selectedUserId = localStorage.getItem('selectedUserId');
-        const selectedUserEmail = localStorage.getItem('selectedUserEmail') || 'Пользователь';
+        const selectedUsername = localStorage.getItem('selectedUserEmail') || 'Пользователь';
         
         // Отображаем источник данных
         const sourceInfo = document.getElementById('sourceInfo');
         let sourceText = '';
         if (dataSource === 'synthetic') sourceText = '📊 Синтетические данные';
         else if (dataSource === 'team') sourceText = '👥 Данные команды';
-        else if (dataSource === 'user') sourceText = `👤 Данные пользователя: ${selectedUserEmail}`;
+        else if (dataSource === 'user') sourceText = `👤 Данные пользователя: ${selectedUsername}`;
         else if (dataSource === 'stats') sourceText = '📊 Статистика команды';
         sourceInfo.textContent = sourceText;
 
