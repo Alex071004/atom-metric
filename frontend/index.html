@@ -183,9 +183,9 @@
             try {
                 const { data: profiles, error } = await supabase
                     .from('profiles')
-                    .select('user_id, email')
-                    .order('email');
-
+                    .select('user_id, email, username')
+                    .order('username');
+        
                 if (error) throw error;
                 
                 userSelect.innerHTML = '<option value="">Выберите пользователя...</option>';
@@ -193,15 +193,20 @@
                 profiles.forEach(profile => {
                     const option = document.createElement('option');
                     option.value = profile.user_id;
-                    option.textContent = profile.email;
+                    // Показываем username, а в скобках email
+                    option.textContent = profile.username ? 
+                        `${profile.username} (${profile.email})` : 
+                        profile.email;
+                    
                     if (profile.user_id === savedUserId) {
                         option.selected = true;
                         currentUserId = profile.user_id;
+                        // Сохраняем username для отображения
+                        localStorage.setItem('selectedUserEmail', profile.username || profile.email);
                     }
                     userSelect.appendChild(option);
                 });
-
-                // Если есть сохраненный пользователь и выбран источник "user", загружаем данные
+        
                 if (savedUserId && document.querySelector('input[name="dataSource"]:checked').value === 'user') {
                     const data = await loadUserData(savedUserId);
                     if (data) {
