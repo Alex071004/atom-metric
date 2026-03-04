@@ -294,12 +294,12 @@
                 const { data: sessions, error } = await supabase
                     .from('sessions')
                     .select('user_id, date');
-
+        
                 if (error) throw error;
                 if (!sessions || sessions.length === 0) {
                     throw new Error('Нет данных команды');
                 }
-
+        
                 // Подсчитываем количество дней для каждого пользователя
                 const userDaysMap = new Map();
                 sessions.forEach(session => {
@@ -309,31 +309,57 @@
                     }
                     userDaysMap.get(userId).add(session.date);
                 });
-
-                // Получаем email пользователей
+        
+                // Получаем пользователей с именами из profiles
                 const { data: profiles } = await supabase
                     .from('profiles')
-                    .select('user_id, email');
-
-                const emailMap = new Map();
-                profiles?.forEach(p => emailMap.set(p.user_id, p.email));
-
+                    .select('user_id, email, username');
+        
+                const userMap = new Map();
+                profiles?.forEach(p => {
+                    userMap.set(p.user_id, {
+                        username: p.username,
+                        email: p.email
+                    });
+                });
+        
                 // Формируем данные для круговой диаграммы
                 const labels = [];
                 const data = [];
+                const colors = [
+                    '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', 
+                    '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
+                    '#bcbd22', '#17becf', '#f7b6d2', '#c49c94'
+                ];
                 
-                userDaysMap.forEach((days, userId) => {
-                    const email = emailMap.get(userId) || `Пользователь ${userId.slice(0, 8)}`;
-                    labels.push(email);
+                let colorIndex = 0;
+                
+                // Сортируем пользователей по количеству дней (от большего к меньшему)
+                const sortedUsers = Array.from(userDaysMap.entries())
+                    .sort((a, b) => b[1].size - a[1].size);
+                
+                sortedUsers.forEach(([userId, days]) => {
+                    const userInfo = userMap.get(userId) || { 
+                        username: 'Неизвестный', 
+                        email: 'Нет email' 
+                    };
+                    
+                    // Используем username, если есть, иначе email
+                    const displayName = userInfo.username || userInfo.email.split('@')[0];
+                    labels.push(`${displayName} (${days.size} дн.)`);
                     data.push(days.size);
+                    colorIndex++;
                 });
-
-                return { labels, data };
+        
+                return { 
+                    labels, 
+                    data,
+                    colors: colors.slice(0, labels.length)
+                };
             } catch (error) {
                 throw new Error('Ошибка загрузки статистики: ' + error.message);
             }
         }
-
         // Функция для отображения статистики команды
         async function displayTeamStats() {
             try {
@@ -342,7 +368,7 @@
                 if (teamStatsChart) {
                     teamStatsChart.destroy();
                 }
-
+        
                 const ctx = document.getElementById('teamStatsChart').getContext('2d');
                 teamStatsChart = new Chart(ctx, {
                     type: 'pie',
@@ -350,10 +376,7 @@
                         labels: stats.labels,
                         datasets: [{
                             data: stats.data,
-                            backgroundColor: [
-                                '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', 
-                                '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'
-                            ]
+                            backgroundColor: stats.colors
                         }]
                     },
                     options: {
@@ -361,16 +384,46 @@
                         maintainAspectRatio: false,
                         plugins: {
                             legend: {
-                                position: 'bottom'
+                                position: 'bottom',
+                                labels: {
+                                    generateLabels: function(chart) {
+                                        const data = chart.data;
+                                        if (data.labels.length && data.datasets.length) {
+                                            return data.labels.map((label, i) => ({
+                                                text: label,
+                                                fillStyle: data.datasets[0].backgroundColor[i],
+                                                strokeStyle: 'rgba(0,0,0,0.1)',
+                                                lineWidth: 1,
+                                                hidden: false,
+                                                index: i
+                                            }));
+                                        }
+                                        return [];
+                                    }
+                                }
                             },
                             title: {
                                 display: true,
-                                text: 'Количество дней сбора по пользователям'
+                                text: 'Количество дней сбора по пользователям',
+                                font: {
+                                    size: 16
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.raw || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = ((value / total) * 100).toFixed(1);
+                                        return `${label}: ${value} дней (${percentage}%)`;
+                                    }
+                                }
                             }
                         }
                     }
                 });
-
+        
                 loadingEl.style.display = 'none';
                 teamStatsContainer.style.display = 'block';
                 statsCards.style.display = 'none';
@@ -381,7 +434,6 @@
                 throw error;
             }
         }
-
         async function loadSyntheticData() {
             const response = await fetch('data.json');
             if (!response.ok) throw new Error('Ошибка загрузки синтетических данных');
