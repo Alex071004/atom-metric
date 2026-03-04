@@ -4,14 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>АТОМ Metrics - Детальный дашборд</title>
-    
-    <!-- Подключение стилей -->
     <link rel="stylesheet" href="styles.css">
-    
-    <!-- Подключение Chart.js и плагина аннотаций -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
-    
     <style>
         .back-link {
             display: inline-block;
@@ -58,6 +53,14 @@
             gap: 20px;
             margin-top: 20px;
         }
+        .source-info {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: var(--bg-color);
+            border-radius: var(--border-radius);
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -65,12 +68,10 @@
         <header>
             <a href="index.html" class="back-link">← На главную</a>
             <h1>📊 Детальный дашборд</h1>
-            <p>Детальный анализ каждого тачпоинта</p>
+            <div id="sourceInfo" class="source-info">Загрузка...</div>
         </header>
 
-        <div id="loading" class="loading">
-            Загрузка данных...
-        </div>
+        <div id="loading" class="loading">Загрузка данных...</div>
 
         <!-- Детальные графики по каждому тачпоинту -->
         <div id="detailContent" style="display: none;">
@@ -120,15 +121,25 @@
             </div>
         </div>
 
-        <div id="error" class="error" style="display: none;">
-            Ошибка загрузки данных
-        </div>
+        <div id="error" class="error" style="display: none;"></div>
     </div>
 
-    <script>
+    <script type="module">
+        import { supabase } from './supabase/supabase-config.js';
+
         // Глобальные переменные для графиков
         let detailCharts = {};
-    
+
+        // Получаем параметр source из URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const dataSource = urlParams.get('source') || 'synthetic';
+        
+        // Отображаем источник данных
+        const sourceInfo = document.getElementById('sourceInfo');
+        sourceInfo.textContent = dataSource === 'synthetic' 
+            ? '📊 Синтетические данные' 
+            : '👥 Данные команды';
+
         // Функция для создания вертикальных линий
         function createAnnotations(daysCount) {
             const annotations = {};
@@ -153,42 +164,123 @@
             
             return annotations;
         }
-    
+
+        // Функция для вычисления производных (шаг 5)
+        function calculateDerivatives(values) {
+            if (values.length < 2) return values.map(() => 0);
+            
+            const result = new Array(values.length).fill(0);
+            
+            // Создаем массив индексов для отображения (каждый 5-й день)
+            const indices = [];
+            for (let i = 0; i < values.length; i += 5) {
+                indices.push(i);
+            }
+            if (indices[indices.length - 1] !== values.length - 1) {
+                indices.push(values.length - 1);
+            }
+            
+            // Вычисляем производные только на выбранных точках
+            for (let i = 0; i < indices.length - 1; i++) {
+                const idx1 = indices[i];
+                const idx2 = indices[i + 1];
+                
+                // Производная = (y2 - y1) / (x2 - x1)
+                const deriv = (values[idx2] - values[idx1]) / (idx2 - idx1);
+                
+                // Заполняем все точки между idx1 и idx2 этим значением
+                for (let j = idx1; j < idx2; j++) {
+                    result[j] = deriv;
+                }
+            }
+            
+            // Заполняем последний отрезок
+            if (indices.length >= 2) {
+                const lastDeriv = result[indices[indices.length - 2]];
+                for (let j = indices[indices.length - 2]; j < values.length; j++) {
+                    result[j] = lastDeriv;
+                }
+            }
+            
+            return result;
+        }
+
         async function loadDetailData() {
             try {
                 const loadingEl = document.getElementById('loading');
-                if (loadingEl) loadingEl.style.display = 'block';
-                
-                const response = await fetch('data.json');
-                if (!response.ok) throw new Error('Ошибка загрузки');
-                
-                const data = await response.json();
-                console.log('Данные загружены для детального дашборда:', data);
-                
-                if (loadingEl) loadingEl.style.display = 'none';
-                
                 const detailContent = document.getElementById('detailContent');
-                if (detailContent) detailContent.style.display = 'block';
-                
                 const errorEl = document.getElementById('error');
-                if (errorEl) errorEl.style.display = 'none';
+                
+                loadingEl.style.display = 'block';
+                detailContent.style.display = 'none';
+                errorEl.style.display = 'none';
+                
+                let data;
+                
+                if (dataSource === 'synthetic') {
+                    // Загрузка синтетических данных
+                    const response = await fetch('data.json');
+                    if (!response.ok) throw new Error('Ошибка загрузки синтетических данных');
+                    data = await response.json();
+                } else {
+                    // Загрузка данных команды из Supabase
+                    const { data: sessions, error } = await supabase
+                        .from('sessions')
+                        .select('*')
+                        .order('date', { ascending: true });
+
+                    if (error) throw error;
+                    if (!sessions || sessions.length === 0) {
+                        throw new Error('Нет данных команды');
+                    }
+
+                    // Агрегация по дням
+                    const dailyMap = new Map();
+                    sessions.forEach(session => {
+                        const date = session.date;
+                        if (!dailyMap.has(date)) {
+                            dailyMap.set(date, { button: 0, svp: 0, va: 0, app: 0 });
+                        }
+                        const day = dailyMap.get(date);
+                        day.button += session.button;
+                        day.svp += session.svp;
+                        day.va += session.va;
+                        day.app += session.app;
+                    });
+
+                    const daily = Array.from(dailyMap.entries())
+                        .map(([date, counts]) => ({
+                            date,
+                            ...counts,
+                            total: counts.button + counts.svp + counts.va + counts.app
+                        }))
+                        .sort((a, b) => a.date.localeCompare(b.date));
+
+                    // Вычисляем производные
+                    const derivatives = {
+                        button: calculateDerivatives(daily.map(d => d.button)),
+                        svp: calculateDerivatives(daily.map(d => d.svp)),
+                        va: calculateDerivatives(daily.map(d => d.va)),
+                        app: calculateDerivatives(daily.map(d => d.app))
+                    };
+
+                    data = { daily, derivatives };
+                }
+
+                loadingEl.style.display = 'none';
+                detailContent.style.display = 'block';
                 
                 createDetailCharts(data);
                 
             } catch (error) {
                 console.error('Ошибка:', error);
                 
-                const loadingEl = document.getElementById('loading');
-                if (loadingEl) loadingEl.style.display = 'none';
-                
-                const errorEl = document.getElementById('error');
-                if (errorEl) {
-                    errorEl.style.display = 'block';
-                    errorEl.innerHTML = 'Ошибка загрузки данных: ' + error.message;
-                }
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').innerHTML = 'Ошибка загрузки данных: ' + error.message;
             }
         }
-    
+
         function createDetailCharts(data) {
             // Уничтожаем старые графики
             Object.values(detailCharts).forEach(chart => {
@@ -197,21 +289,10 @@
             
             const daysCount = data.daily.length;
             
-            // ВАЖНО: создаем массив дней с начала релиза (1, 2, 3...)
-            // И прореживаем до каждых 5 дней для подписей
+            // Создаем массив дней с начала релиза (1, 2, 3...)
             const allDays = [];
             for (let i = 1; i <= daysCount; i++) {
                 allDays.push(i);
-            }
-            
-            // Создаем подписи для оси X (каждые 5 дней)
-            const xLabels = [];
-            for (let i = 1; i <= daysCount; i += 5) {
-                xLabels.push(i);
-            }
-            // Добавляем последний день если нужно
-            if (xLabels[xLabels.length - 1] !== daysCount) {
-                xLabels.push(daysCount);
             }
             
             const annotations = createAnnotations(daysCount);
@@ -225,7 +306,7 @@
                 derivIndices.push(allDays.length - 1);
             }
             const derivLabels = derivIndices.map(i => allDays[i]);
-    
+
             // 1. Кнопка - ежедневные
             const buttonDailyCanvas = document.getElementById('buttonDailyChart');
             if (buttonDailyCanvas) {
@@ -257,8 +338,7 @@
                                 min: 1,
                                 max: daysCount,
                                 ticks: {
-                                    callback: function(val, index) {
-                                        // Показываем только каждые 5 дней
+                                    callback: function(val) {
                                         if (val % 5 === 0 || val === 1 || val === daysCount) {
                                             return val;
                                         }
@@ -275,7 +355,7 @@
                     }
                 });
             }
-    
+
             // 2. СВП - ежедневные
             const svpDailyCanvas = document.getElementById('svpDailyChart');
             if (svpDailyCanvas) {
@@ -307,7 +387,7 @@
                                 min: 1,
                                 max: daysCount,
                                 ticks: {
-                                    callback: function(val, index) {
+                                    callback: function(val) {
                                         if (val % 5 === 0 || val === 1 || val === daysCount) {
                                             return val;
                                         }
@@ -324,7 +404,7 @@
                     }
                 });
             }
-    
+
             // 3. VA - ежедневные
             const vaDailyCanvas = document.getElementById('vaDailyChart');
             if (vaDailyCanvas) {
@@ -356,7 +436,7 @@
                                 min: 1,
                                 max: daysCount,
                                 ticks: {
-                                    callback: function(val, index) {
+                                    callback: function(val) {
                                         if (val % 5 === 0 || val === 1 || val === daysCount) {
                                             return val;
                                         }
@@ -373,7 +453,7 @@
                     }
                 });
             }
-    
+
             // 4. Приложение - ежедневные
             const appDailyCanvas = document.getElementById('appDailyChart');
             if (appDailyCanvas) {
@@ -405,7 +485,7 @@
                                 min: 1,
                                 max: daysCount,
                                 ticks: {
-                                    callback: function(val, index) {
+                                    callback: function(val) {
                                         if (val % 5 === 0 || val === 1 || val === daysCount) {
                                             return val;
                                         }
@@ -422,10 +502,10 @@
                     }
                 });
             }
-    
+
             // 5. Производная кнопки
             const buttonDerivCanvas = document.getElementById('buttonDerivChart');
-            if (buttonDerivCanvas) {
+            if (buttonDerivCanvas && data.derivatives) {
                 const buttonDerivData = derivIndices.map(i => data.derivatives.button[i] || 0);
                 const maxAbsButton = Math.max(...buttonDerivData.map(Math.abs)) * 1.2 || 1;
                 
@@ -456,7 +536,7 @@
                                 min: 1,
                                 max: daysCount,
                                 ticks: {
-                                    callback: function(val, index) {
+                                    callback: function(val) {
                                         if (val % 5 === 0 || val === 1 || val === daysCount) {
                                             return val;
                                         }
@@ -477,10 +557,10 @@
                     }
                 });
             }
-    
+
             // 6. Производная СВП
             const svpDerivCanvas = document.getElementById('svpDerivChart');
-            if (svpDerivCanvas) {
+            if (svpDerivCanvas && data.derivatives) {
                 const svpDerivData = derivIndices.map(i => data.derivatives.svp[i] || 0);
                 const maxAbsSvp = Math.max(...svpDerivData.map(Math.abs)) * 1.2 || 1;
                 
@@ -511,7 +591,7 @@
                                 min: 1,
                                 max: daysCount,
                                 ticks: {
-                                    callback: function(val, index) {
+                                    callback: function(val) {
                                         if (val % 5 === 0 || val === 1 || val === daysCount) {
                                             return val;
                                         }
@@ -532,10 +612,10 @@
                     }
                 });
             }
-    
+
             // 7. Производная VA
             const vaDerivCanvas = document.getElementById('vaDerivChart');
-            if (vaDerivCanvas) {
+            if (vaDerivCanvas && data.derivatives) {
                 const vaDerivData = derivIndices.map(i => data.derivatives.va[i] || 0);
                 const maxAbsVa = Math.max(...vaDerivData.map(Math.abs)) * 1.2 || 1;
                 
@@ -566,7 +646,7 @@
                                 min: 1,
                                 max: daysCount,
                                 ticks: {
-                                    callback: function(val, index) {
+                                    callback: function(val) {
                                         if (val % 5 === 0 || val === 1 || val === daysCount) {
                                             return val;
                                         }
@@ -587,10 +667,10 @@
                     }
                 });
             }
-    
+
             // 8. Производная приложения
             const appDerivCanvas = document.getElementById('appDerivChart');
-            if (appDerivCanvas) {
+            if (appDerivCanvas && data.derivatives) {
                 const appDerivData = derivIndices.map(i => data.derivatives.app[i] || 0);
                 const maxAbsApp = Math.max(...appDerivData.map(Math.abs)) * 1.2 || 1;
                 
@@ -621,7 +701,7 @@
                                 min: 1,
                                 max: daysCount,
                                 ticks: {
-                                    callback: function(val, index) {
+                                    callback: function(val) {
                                         if (val % 5 === 0 || val === 1 || val === daysCount) {
                                             return val;
                                         }
@@ -643,14 +723,14 @@
                 });
             }
         }
-    
+
         // Обработка ресайза
         window.addEventListener('resize', () => {
             Object.values(detailCharts).forEach(chart => {
                 if (chart) chart.resize();
             });
         });
-    
+
         // Запуск при загрузке
         document.addEventListener('DOMContentLoaded', loadDetailData);
     </script>
