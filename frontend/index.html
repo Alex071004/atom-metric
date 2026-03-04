@@ -187,9 +187,6 @@
                     .sort((a, b) => a.date.localeCompare(b.date));
 
                 const totalOpens = daily.reduce((sum, d) => sum + d.total, 0);
-
-                // Вычисляем количество уникальных пользователей
-                const uniqueUsers = new Set(sessions.map(s => s.user_id)).size;
   
                 // Вычисляем производные
                 const derivatives = {
@@ -198,7 +195,10 @@
                     va: calculateDerivatives(daily.map(d => d.va)),
                     app: calculateDerivatives(daily.map(d => d.app))
                 };
-
+                
+                // Вычисляем количество уникальных пользователей
+                const uniqueUsers = new Set(sessions.map(s => s.user_id)).size;
+                
                 return {
                     daily,
                     summary: {
