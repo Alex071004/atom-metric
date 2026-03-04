@@ -80,21 +80,28 @@ class StaticSiteBuilder:
         return self
     
     def copy_frontend(self):
-        """Копирование фронтенда в output."""
+        """Копирование фронтенда в output (рекурсивно)."""
         print("📁 Копирование фронтенда...")
         
         frontend_dir = os.path.join(os.path.dirname(__file__), "../frontend")
         frontend_dir = os.path.abspath(frontend_dir)
         
         if os.path.exists(frontend_dir):
-            for file in os.listdir(frontend_dir):
-                src = os.path.join(frontend_dir, file)
-                dst = os.path.join(self.output_dir, file)
-                if os.path.isfile(src):
+            # Копируем все файлы и папки рекурсивно
+            for root, dirs, files in os.walk(frontend_dir):
+                for file in files:
+                    src = os.path.join(root, file)
+                    # Вычисляем относительный путь от frontend_dir
+                    rel_path = os.path.relpath(src, frontend_dir)
+                    dst = os.path.join(self.output_dir, rel_path)
+                    
+                    # Создаем подпапки если нужно
+                    os.makedirs(os.path.dirname(dst), exist_ok=True)
+                    
                     shutil.copy2(src, dst)
-                    print(f"   ✅ Скопирован: {file}")
+                    print(f"   ✅ Скопирован: {rel_path}")
         else:
-            print(f"❌ Папка фронтенда не найдена!")
+            print(f"❌ Папка фронтенда не найдена: {frontend_dir}")
         
         return self
     
