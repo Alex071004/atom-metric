@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>АТОМ Metrics – Сбор данных</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .collect-container {
+            max-width: 600px;
+            margin: 30px auto;
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+        }
+        .day-info {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: var(--bg-color);
+            border-radius: var(--border-radius);
+        }
+        .day-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        .day-date {
+            font-size: 1.2em;
+            color: var(--text-light);
+        }
+        .counters-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .counter-card {
+            background: var(--bg-color);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            text-align: center;
+        }
+        .counter-label {
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            color: var(--text-color);
+        }
+        .counter-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin: 10px 0;
+        }
+        .counter-btn {
+            width: 60px;
+            height: 60px;
+            font-size: 2em;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .counter-btn:hover {
+            background: #155a8a;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .btn-primary {
+            flex: 2;
+            padding: 15px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .btn-secondary {
+            flex: 1;
+            padding: 15px;
+            background: var(--text-light);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .btn-primary:hover {
+            background: #155a8a;
+        }
+        .btn-secondary:hover {
+            background: #555;
+        }
+        .user-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: var(--bg-color);
+            border-radius: var(--border-radius);
+        }
+        .logout-btn {
+            background: none;
+            border: 1px solid var(--danger-color);
+            color: var(--danger-color);
+            padding: 5px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .logout-btn:hover {
+            background: var(--danger-color);
+            color: white;
+        }
+        .error-message {
+            color: var(--danger-color);
+            text-align: center;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="collect-container">
+            <div class="user-info">
+                <span id="userEmail">Загрузка...</span>
+                <button class="logout-btn" id="logoutBtn">Выйти</button>
+            </div>
+
+            <div class="day-info">
+                <div class="day-number" id="currentDay">-</div>
+                <div class="day-date" id="currentDate">-</div>
+            </div>
+
+            <div class="counters-grid">
+                <div class="counter-card">
+                    <div class="counter-label">Кнопка</div>
+                    <div class="counter-value" id="buttonValue">0</div>
+                    <button class="counter-btn" id="buttonInc">+1</button>
+                </div>
+                <div class="counter-card">
+                    <div class="counter-label">СВП</div>
+                    <div class="counter-value" id="svpValue">0</div>
+                    <button class="counter-btn" id="svpInc">+1</button>
+                </div>
+                <div class="counter-card">
+                    <div class="counter-label">VA</div>
+                    <div class="counter-value" id="vaValue">0</div>
+                    <button class="counter-btn" id="vaInc">+1</button>
+                </div>
+                <div class="counter-card">
+                    <div class="counter-label">Приложение</div>
+                    <div class="counter-value" id="appValue">0</div>
+                    <button class="counter-btn" id="appInc">+1</button>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn-primary" id="completeSession">✔ Завершить сессию</button>
+                <button class="btn-secondary" id="endCollection">🏁 Закончить сбор</button>
+            </div>
+            <div id="collectError" class="error-message"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { supabase } from './supabase/supabase-config.js';
+
+        // Элементы DOM
+        const userEmailSpan = document.getElementById('userEmail');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const currentDaySpan = document.getElementById('currentDay');
+        const currentDateSpan = document.getElementById('currentDate');
+        const buttonValue = document.getElementById('buttonValue');
+        const svpValue = document.getElementById('svpValue');
+        const vaValue = document.getElementById('vaValue');
+        const appValue = document.getElementById('appValue');
+        const buttonInc = document.getElementById('buttonInc');
+        const svpInc = document.getElementById('svpInc');
+        const vaInc = document.getElementById('vaInc');
+        const appInc = document.getElementById('appInc');
+        const completeSessionBtn = document.getElementById('completeSession');
+        const endCollectionBtn = document.getElementById('endCollection');
+        const collectError = document.getElementById('collectError');
+
+        // Константы
+        const BASE_DATE = '2026-03-01'; // Фиксированная дата релиза
+
+        // Состояние
+        let currentDay = 1;
+        let userId = null;
+        let counters = { button: 0, svp: 0, va: 0, app: 0 };
+
+        // Проверка аутентификации при загрузке
+        async function checkAuth() {
+            const { data: { session }, error } = await supabase.auth.getSession();
+            if (error || !session) {
+                // Не авторизован – редирект на login
+                window.location.href = 'login.html';
+                return;
+            }
+            userId = session.user.id;
+            userEmailSpan.textContent = session.user.email;
+            await loadUserProgress();
+        }
+
+        // Загрузка текущего дня пользователя из таблицы user_progress
+        async function loadUserProgress() {
+            const { data, error } = await supabase
+                .from('user_progress')
+                .select('current_day')
+                .eq('user_id', userId)
+                .maybeSingle();
+
+            if (error) {
+                console.error('Ошибка загрузки прогресса:', error);
+                collectError.textContent = 'Ошибка загрузки прогресса';
+                return;
+            }
+
+            if (data) {
+                currentDay = data.current_day;
+            } else {
+                // Если записи нет (например, старый пользователь), создаём
+                await supabase
+                    .from('user_progress')
+                    .insert({ user_id: userId, current_day: 1 });
+                currentDay = 1;
+            }
+
+            // Восстанавливаем черновик из localStorage
+            const draftKey = `draft_${userId}`;
+            const savedDraft = localStorage.getItem(draftKey);
+            if (savedDraft) {
+                try {
+                    const parsed = JSON.parse(savedDraft);
+                    if (parsed.currentDay === currentDay) {
+                        counters = { ...counters, ...parsed.counters };
+                    } else {
+                        // Черновик устарел (день изменился) – удаляем
+                        localStorage.removeItem(draftKey);
+                    }
+                } catch (e) {
+                    console.warn('Ошибка чтения черновика', e);
+                }
+            }
+
+            updateUI();
+        }
+
+        // Обновление интерфейса (день, дата, счётчики)
+        function updateUI() {
+            currentDaySpan.textContent = `День ${currentDay}`;
+            // Вычисляем дату от базовой
+            const base = new Date(BASE_DATE);
+            base.setDate(base.getDate() + (currentDay - 1));
+            const dateStr = base.toISOString().split('T')[0]; // YYYY-MM-DD
+            currentDateSpan.textContent = dateStr;
+
+            buttonValue.textContent = counters.button;
+            svpValue.textContent = counters.svp;
+            vaValue.textContent = counters.va;
+            appValue.textContent = counters.app;
+
+            // Сохраняем черновик
+            const draftKey = `draft_${userId}`;
+            localStorage.setItem(draftKey, JSON.stringify({
+                currentDay,
+                counters
+            }));
+        }
+
+        // Обработчики кнопок инкремента
+        buttonInc.addEventListener('click', () => {
+            counters.button++;
+            updateUI();
+        });
+        svpInc.addEventListener('click', () => {
+            counters.svp++;
+            updateUI();
+        });
+        vaInc.addEventListener('click', () => {
+            counters.va++;
+            updateUI();
+        });
+        appInc.addEventListener('click', () => {
+            counters.app++;
+            updateUI();
+        });
+
+        // Завершить сессию
+        completeSessionBtn.addEventListener('click', async () => {
+            // Проверяем, есть ли данные (хотя бы одно открытие)
+            if (counters.button + counters.svp + counters.va + counters.app === 0) {
+                collectError.textContent = 'Добавьте хотя бы одно открытие';
+                return;
+            }
+
+            // Вычисляем текущую дату для сессии
+            const base = new Date(BASE_DATE);
+            base.setDate(base.getDate() + (currentDay - 1));
+            const dateStr = base.toISOString().split('T')[0];
+
+            // Сохраняем сессию в таблицу sessions
+            const { error } = await supabase
+                .from('sessions')
+                .insert({
+                    user_id: userId,
+                    date: dateStr,
+                    button: counters.button,
+                    svp: counters.svp,
+                    va: counters.va,
+                    app: counters.app
+                });
+
+            if (error) {
+                console.error('Ошибка сохранения сессии:', error);
+                collectError.textContent = 'Не удалось сохранить сессию';
+                return;
+            }
+
+            // Обновляем день в user_progress
+            currentDay++;
+            const { error: updateError } = await supabase
+                .from('user_progress')
+                .update({ current_day: currentDay, updated_at: new Date() })
+                .eq('user_id', userId);
+
+            if (updateError) {
+                console.error('Ошибка обновления дня:', updateError);
+                collectError.textContent = 'Не удалось обновить день, но сессия сохранена';
+                // Продолжаем, день не обновлён – возможно, придётся перезагрузить
+            }
+
+            // Сбрасываем счётчики
+            counters = { button: 0, svp: 0, va: 0, app: 0 };
+            // Удаляем черновик (сессия завершена)
+            localStorage.removeItem(`draft_${userId}`);
+            updateUI();
+        });
+
+        // Закончить сбор (вернуться на главную без сохранения)
+        endCollectionBtn.addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
+
+        // Выход
+        logoutBtn.addEventListener('click', async () => {
+            await supabase.auth.signOut();
+            // Очищаем локальные данные
+            localStorage.removeItem(`draft_${userId}`);
+            window.location.href = 'index.html';
+        });
+
+        // Запуск
+        checkAuth();
+    </script>
+</body>
+</html>
