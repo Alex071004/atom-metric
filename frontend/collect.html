@@ -215,6 +215,7 @@
             }
             userId = session.user.id;
             userEmailSpan.textContent = session.user.email;
+            localStorage.setItem('currentUserEmail', session.user.email);
             await loadUserProgress();
         }
 
